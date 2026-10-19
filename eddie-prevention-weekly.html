@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>Eddie Prevention · Weekly Check-In</title>
+<!--
+  Eddie Prevention — Weekly Check-In (built from CancerLess weekly-checkin-v2).
+  FlutterFlow WebView URL (Combine Text):
+    https://cancertreatmentspecialist.github.io/eddie-chat/eddie-prevention-weekly.html?v=1#t=  +  Authenticated User → Id token (JWT token)
+  Saves to Firestore `weekly_logs` as the signed-in user (owner-only rules apply).
+  Fields: fiberGrams, fiberRating, stressRating, bmi, weightLb, heightIn, systolic, diastolic, weeklyWin, weekStart, createdTime.
+-->
+<style>
+:root{
+  --bg:#f3f8fc; --card:#fff; --ink:#1f2937; --ink-2:#4b5563; --muted:#6b7280; --line:#e3ebf3; --grid:#eaf1f7;
+  --brand:#1B9BD7; --brand-ink:#0b74a8; --deep:#0b4f8a; --brand-soft:#e6f5fc;
+  --good:#16a34a; --good-soft:#e8f7ee; --warn:#b45309; --warn-soft:#fff4e5; --bad:#b91c1c; --bad-soft:#fdecec;
+  --shadow:0 8px 24px rgba(11,79,138,.07), 0 1px 2px rgba(11,79,138,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg);overflow-x:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--ink);line-height:1.45;-webkit-font-smoothing:antialiased;padding-bottom:24px}
+.wrap{max-width:560px;margin:0 auto}
+.hero{background:linear-gradient(135deg,var(--brand),var(--deep));color:#fff;padding:26px 20px 66px;border-radius:0 0 30px 30px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.85}
+.hero h1{font-size:28px;font-weight:800;letter-spacing:-.02em;margin-top:2px}
+.hero p{font-size:14px;opacity:.92;margin-top:4px}
+main{padding:0 16px;margin-top:-46px}
+.card{background:var(--card);border-radius:22px;box-shadow:var(--shadow);padding:18px;margin-bottom:14px}
+.q-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.q-head h2{font-size:16.5px;font-weight:750}
+.q-head .sub{font-size:13px;color:var(--muted);margin-top:2px}
+.info{flex-shrink:0;border:0;background:var(--bg);color:var(--brand-ink);font:inherit;font-weight:800;font-size:13px;width:30px;height:30px;border-radius:50%;cursor:pointer}
+.stepper{display:flex;align-items:center;justify-content:center;gap:14px;margin:14px 0 8px}
+.stepper button{width:46px;height:46px;border-radius:14px;border:0;background:var(--bg);color:var(--deep);font-size:24px;font-weight:700;cursor:pointer}
+.stepper button:active{transform:scale(.94)}
+.stepper .val{min-width:120px;text-align:center}
+.stepper .val b{font-size:34px;font-weight:800;letter-spacing:-.02em}
+.stepper .val span{display:block;font-size:12.5px;color:var(--muted);margin-top:-2px}
+.quick{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+.quick button{border:1.5px solid var(--line);background:#fff;color:var(--ink-2);font:inherit;font-size:13px;font-weight:650;border-radius:20px;padding:6px 12px;cursor:pointer}
+.quick button.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-ink)}
+.gauge{position:relative;height:12px;border-radius:7px;background:var(--grid);margin:6px 0 4px}
+.gauge .zone{position:absolute;top:0;bottom:0;background:#bfe9cf;border-radius:7px}
+.gauge .mark{position:absolute;top:-5px;width:22px;height:22px;margin-left:-11px;border-radius:50%;background:#fff;border:4px solid var(--deep);box-shadow:0 1px 4px rgba(0,0,0,.2);transition:left .35s cubic-bezier(.2,.8,.2,1)}
+.g-scale{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.status{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13.5px;font-weight:700}
+.status i{font-style:normal;font-size:16px}
+.status.good{color:var(--good)} .status.warn{color:var(--warn)} .status.bad{color:var(--bad)}
+.status .tgt{margin-left:auto;font-weight:600;color:var(--muted);font-size:12.5px;text-align:right}
+.src{display:none;margin-top:12px;background:var(--bg);border-radius:12px;padding:10px 12px;font-size:12.5px;color:var(--ink-2)}
+.src.open{display:block}
+.src a{color:var(--brand-ink);font-weight:700}
+.alert{display:none;margin-top:12px;background:var(--bad-soft);border-radius:14px;padding:12px 14px;font-size:13px;color:var(--bad);font-weight:600}
+.alert.show{display:block}
+textarea{width:100%;min-height:76px;border:1px solid #d1d5db;border-radius:14px;padding:12px;font:inherit;font-size:15px;resize:none;margin-top:10px}
+.save{display:block;width:100%;border:0;border-radius:18px;padding:17px;color:#fff;font:inherit;font-size:17px;font-weight:800;background:linear-gradient(135deg,var(--brand),var(--deep));cursor:pointer;box-shadow:0 8px 20px rgba(11,79,138,.25)}
+.save:disabled{opacity:.6;cursor:wait}
+.result{display:none;border-radius:18px;padding:18px;text-align:center;margin-top:14px}
+.result.success{display:block;background:#ecfdf5;border:1px solid #86efac}
+.result.error{display:block;background:#fee2e2;border:1px solid #fca5a5}
+.result .detail{display:block;margin-top:6px;font-size:12.5px;color:var(--muted)}
+.progress-link{display:block;margin-top:12px;padding:12px 16px;border-radius:14px;background:linear-gradient(135deg,var(--brand),var(--deep));color:#fff;font-weight:800;text-decoration:none}
+.note{font-size:11.5px;color:var(--muted);text-align:center;padding:14px 18px 0}
+.note a{color:var(--muted)}
+.hw{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.hw label{font-size:12.5px;color:var(--muted);font-weight:600}
+.hw input{display:block;width:100%;margin-top:4px;border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;font:inherit;font-size:16px}
+.hw .full{grid-column:1/-1}
+.out{margin-top:12px;font-size:14px;color:var(--ink-2)}
+.out b{font-size:22px;color:var(--ink)}
+input[type=range]{width:100%;accent-color:var(--brand);margin-top:14px}
+.s-labels{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">Eddie Prevention</div>
+    <h1>Weekly Check-In</h1>
+    <p>Look back on the last 7 days: fiber, stress, weight, and blood pressure.</p>
+  </header>
+  <main>
+    <div class="card">
+      <div class="q-head"><div><h2>🌾 Fiber</h2><div class="sub">About how many grams of fiber did you eat on a typical day this week?</div></div>
+        <button class="info" aria-label="About this target" data-info="fiberSrc">i</button></div>
+      <div class="stepper">
+        <button aria-label="Less" data-fd="-1">−</button>
+        <div class="val"><b id="fiberVal">15</b><span>grams / day</span></div>
+        <button aria-label="More" data-fd="1">+</button>
+      </div>
+      <div class="quick" id="fiberQuick">
+        <button data-q="5">Under 10</button><button data-q="15">10–19</button><button data-q="22">20–24</button><button data-q="28">25–30</button><button data-q="35">30+</button>
+      </div>
+      <div class="gauge" aria-hidden="true"><div class="zone" id="fiberZone"></div><div class="mark" id="fiberMark"></div></div>
+      <div class="g-scale"><span>0</span><span>45 g</span></div>
+      <div class="status" id="fiberStatus"></div>
+      <div class="src" id="fiberSrc">Adults need about <b>25 g (women) to 38 g (men)</b> of fiber a day. Most Americans get only about half that.
+        Helpful guide: 1 cup cooked beans or lentils ≈ 13–15 g · 1 cup cooked oatmeal ≈ 4 g · 1 medium apple or pear ≈ 4–5 g · 1 slice whole-wheat bread ≈ 2–3 g.<br>
+        Source: <a href="https://www.dietaryguidelines.gov/" target="_blank" rel="noopener">Dietary Guidelines for Americans</a><br>
+        Source: <a href="https://nap.nationalacademies.org/catalog/10490" target="_blank" rel="noopener">National Academies: Dietary Reference Intakes</a></div>
+    </div>
+
+    <div class="card">
+      <div class="q-head"><div><h2>😌 Stress</h2><div class="sub">Overall, how stressed did you feel this week?</div></div>
+        <button class="info" aria-label="About stress" data-info="stressSrc">i</button></div>
+      <div class="stepper" style="margin-bottom:0"><div class="val"><b id="stressVal">5</b><span>out of 10</span></div></div>
+      <input type="range" id="stress" min="0" max="10" step="1" value="5" aria-label="Stress level 0 to 10">
+      <div class="s-labels"><span>0 · Calm</span><span>10 · Very stressed</span></div>
+      <div class="src" id="stressSrc">There is no "normal range" for stress. What matters is your trend over time. Stress is a common trigger for smoking and drinking, so noticing it is a big step. Regular activity, good sleep, and connection with people you trust can all help. If stress feels overwhelming, talk with your doctor, or call or text 988 any time.</div>
+    </div>
+
+    <div class="card">
+      <div class="q-head"><div><h2>⚖️ Healthy weight (optional)</h2><div class="sub">We'll calculate your BMI. Leave blank to skip.</div></div>
+        <button class="info" aria-label="About BMI" data-info="bmiSrc">i</button></div>
+      <div class="hw">
+        <div><label for="ft">Height (feet)</label><input id="ft" type="number" inputmode="numeric" min="3" max="8" placeholder="5"></div>
+        <div><label for="inch">Height (inches)</label><input id="inch" type="number" inputmode="numeric" min="0" max="11" placeholder="9"></div>
+        <div class="full"><label for="lb">Weight (pounds)</label><input id="lb" type="number" inputmode="decimal" min="50" max="700" placeholder="165"></div>
+      </div>
+      <div id="bmiBox" style="display:none">
+        <div class="out">Your BMI: <b id="bmiVal">–</b></div>
+        <div class="gauge" aria-hidden="true"><div class="zone" id="bmiZone"></div><div class="mark" id="bmiMark"></div></div>
+        <div class="g-scale"><span>15</span><span>40</span></div>
+        <div class="status" id="bmiStatus"></div>
+      </div>
+      <div class="src" id="bmiSrc">A healthy BMI for adults is <b>18.5–24.9</b>. A healthy weight lowers the risk of heart disease, type 2 diabetes, and at least 13 types of cancer. BMI is a screening tool, not a diagnosis; your doctor can tell you what's right for you.<br>
+        Source: <a href="https://www.cdc.gov/bmi/adult-calculator/bmi-categories.html" target="_blank" rel="noopener">CDC: Adult BMI Categories</a></div>
+    </div>
+
+    <div class="card">
+      <div class="q-head"><div><h2>❤️ Blood pressure (optional)</h2><div class="sub">From a home cuff or pharmacy machine. Leave blank to skip.</div></div>
+        <button class="info" aria-label="About blood pressure" data-info="bpSrc">i</button></div>
+      <div class="hw">
+        <div><label for="sys">Top number (systolic)</label><input id="sys" type="number" inputmode="numeric" min="70" max="250" placeholder="118"></div>
+        <div><label for="dia">Bottom number (diastolic)</label><input id="dia" type="number" inputmode="numeric" min="40" max="150" placeholder="76"></div>
+      </div>
+      <div class="status" id="bpStatus" style="display:none"></div>
+      <div class="alert" id="bpAlert">A reading above 180/120 can be dangerous. Wait a few minutes and check again. If it's still this high, or you have chest pain, shortness of breath, weakness, or trouble speaking, call 911.</div>
+      <div class="src" id="bpSrc">Healthy blood pressure is <b>below 120/80</b>. High blood pressure usually has no symptoms but raises the risk of heart attack and stroke. Less salt, more activity, less alcohol, and not smoking all help.<br>
+        Source: <a href="https://www.heart.org/en/health-topics/high-blood-pressure/understanding-blood-pressure-readings" target="_blank" rel="noopener">American Heart Association: Understanding Blood Pressure Readings</a></div>
+    </div>
+
+    <div class="card">
+      <div class="q-head"><div><h2>🏆 Biggest win this week</h2><div class="sub">Optional · celebrate it!</div></div></div>
+      <textarea id="win" placeholder="5 smoke-free days, walked every morning, skipped drinks at the party..."></textarea>
+    </div>
+
+    <button class="save" id="saveBtn">Save Weekly Check-In</button>
+    <div class="result" id="result" role="status" aria-live="polite"></div>
+    <p class="note">Targets are general guidelines for adults. Talk with your doctor about what's right for you. Educational purposes only; not a substitute for professional medical advice. In crisis, call or text <a href="tel:988">988</a>.</p>
+  </main>
+</div>
+
+<script>
+// ===================== CONFIG =====================
+// If Eddie Prevention uses its own Firebase project, change these two lines to match it.
+const FIREBASE_API_KEY = "AIzaSyD9QAG0NDfjQ05-WhYJdmcaS8GazK3M8rY";
+const FIREBASE_PROJECT = "cancer-less-rka8v5";
+const APP_ID = "eddie-prevention";
+const PROGRESS_PAGE = "eddie-prevention-progress.html";
+
+// ===================== AUTH / FIRESTORE =====================
+const hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
+const queryParams = new URLSearchParams(location.search);
+const idToken = (hashParams.get('t') || queryParams.get('t') || '').trim();
+function uidFromToken(tok){
+  try{
+    const part = tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    const json = JSON.parse(decodeURIComponent(escape(atob(part + '==='.slice((part.length+3)%4)))));
+    return json.user_id || json.sub || '';
+  }catch(e){ return ''; }
+}
+const currentUserId = idToken ? uidFromToken(idToken) : '';
+function newDocId(){
+  const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const bytes=new Uint8Array(20); crypto.getRandomValues(bytes);
+  let id=''; for(const b of bytes){ id+=chars[b%chars.length]; } return id;
+}
+const fsInt = n => ({integerValue:String(Math.round(n))});
+const fsDbl = n => ({doubleValue:Number(n)});
+const fsStr = s => ({stringValue:String(s)});
+function createDoc(collection, fields, timestampFields){
+  const base='projects/'+FIREBASE_PROJECT+'/databases/(default)/documents';
+  const body={writes:[{
+    update:{name:base+'/'+collection+'/'+newDocId(), fields:fields},
+    currentDocument:{exists:false},
+    updateTransforms:timestampFields.map(f=>({fieldPath:f, setToServerValue:'REQUEST_TIME'}))
+  }]};
+  return fetch('https://firestore.googleapis.com/v1/'+base+':commit?key='+FIREBASE_API_KEY,{
+    method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+idToken}, body:JSON.stringify(body)
+  }).then(r=>{
+    if(r.ok) return r.json();
+    return r.json().catch(()=>({})).then(j=>{ const s=(j.error&&j.error.status)||('HTTP '+r.status); const e=new Error(s); e.code=s; throw e; });
+  });
+}
+
+// ===================== STATE / UI =====================
+const store = { get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} } };
+let fiber = 15;
+const F_SCALE = 45, F_ZONE = [25, 38];
+const $ = id => document.getElementById(id);
+const fmt = v => (Math.round(v*10)/10).toString().replace(/\.0$/,'');
+$('fiberZone').style.left = (F_ZONE[0]/F_SCALE*100)+'%';
+$('fiberZone').style.width = ((F_ZONE[1]-F_ZONE[0])/F_SCALE*100)+'%';
+$('bmiZone').style.left = ((18.5-15)/25*100)+'%';
+$('bmiZone').style.width = ((24.9-18.5)/25*100)+'%';
+
+function fiberRating(g){ return g>=25?5 : g>=20?4 : g>=15?3 : g>=10?2 : 1; }
+function setStatus(el, cls, msg, tgt){
+  el.className = 'status ' + cls;
+  el.innerHTML = `<i>${cls==='good'?'✅':cls==='bad'?'⚠️':'•'}</i>${msg}<span class="tgt">${tgt}</span>`;
+}
+function paintFiber(){
+  $('fiberVal').textContent = fmt(fiber);
+  $('fiberMark').style.left = Math.min(100, fiber/F_SCALE*100) + '%';
+  document.querySelectorAll('#fiberQuick button').forEach(b=>b.classList.toggle('on', +b.dataset.q === fiber));
+  setStatus($('fiberStatus'), fiber >= 25 ? 'good' : 'warn', fiber >= 25 ? 'Goal met' : 'Getting there', 'Goal: 25–38 g/day');
+}
+function bmiNow(){
+  const ft = parseFloat($('ft').value), inch = parseFloat($('inch').value || '0'), lb = parseFloat($('lb').value);
+  const h = (isFinite(ft) ? ft*12 : NaN) + (isFinite(inch) ? inch : 0);
+  if(!isFinite(h) || h < 36 || !isFinite(lb) || lb < 50) return null;
+  return {bmi: Math.round(703*lb/(h*h)*10)/10, heightIn: h, weightLb: lb};
+}
+function paintBmi(){
+  const r = bmiNow();
+  $('bmiBox').style.display = r ? 'block' : 'none';
+  if(!r) return;
+  $('bmiVal').textContent = r.bmi.toFixed(1);
+  $('bmiMark').style.left = Math.max(0, Math.min(100, (r.bmi-15)/25*100)) + '%';
+  const b = r.bmi;
+  const msg = b < 18.5 ? 'Below the healthy range' : b < 25 ? 'Healthy range' : b < 30 ? 'Above the healthy range' : 'Well above the healthy range';
+  setStatus($('bmiStatus'), (b >= 18.5 && b < 25) ? 'good' : 'warn', msg, 'Healthy: 18.5–24.9');
+}
+// AHA categories
+function bpCategory(s, d){
+  if(s > 180 || d > 120) return ['bad','Very high — see the note below'];
+  if(s >= 140 || d >= 90) return ['warn','High (stage 2): talk with your doctor'];
+  if(s >= 130 || d >= 80) return ['warn','High (stage 1): talk with your doctor'];
+  if(s >= 120) return ['warn','Elevated'];
+  return ['good','Healthy'];
+}
+function bpNow(){
+  const s = parseFloat($('sys').value), d = parseFloat($('dia').value);
+  if(!isFinite(s) || !isFinite(d) || s < 70 || s > 260 || d < 40 || d > 160 || d >= s) return null;
+  return {s, d};
+}
+function paintBp(){
+  const bp = bpNow();
+  $('bpStatus').style.display = bp ? 'flex' : 'none';
+  $('bpAlert').classList.toggle('show', !!bp && (bp.s > 180 || bp.d > 120));
+  if(!bp) return;
+  const [cls, msg] = bpCategory(bp.s, bp.d);
+  setStatus($('bpStatus'), cls, `${bp.s}/${bp.d} · ${msg}`, 'Healthy: below 120/80');
+}
+document.querySelectorAll('[data-fd]').forEach(b=>b.addEventListener('click',()=>{ fiber = Math.max(0, Math.min(80, fiber + (+b.dataset.fd))); paintFiber(); }));
+document.querySelectorAll('#fiberQuick button').forEach(b=>b.addEventListener('click',()=>{ fiber = +b.dataset.q; paintFiber(); }));
+document.querySelectorAll('[data-info]').forEach(b=>b.addEventListener('click',()=>$(b.dataset.info).classList.toggle('open')));
+$('stress').addEventListener('input',()=>{ $('stressVal').textContent = $('stress').value; });
+['ft','inch','lb'].forEach(id=>$(id).addEventListener('input', paintBmi));
+['sys','dia'].forEach(id=>$(id).addEventListener('input', paintBp));
+// remember height on this device for next week
+const savedH = parseFloat(store.get('ep_heightIn'));
+if(isFinite(savedH) && savedH > 36){ $('ft').value = Math.floor(savedH/12); $('inch').value = Math.round(savedH%12); }
+
+function showResult(type, message, detail){
+  const r = $('result');
+  r.className = 'result ' + type;
+  r.innerHTML = '<strong>'+message+'</strong>' + (detail ? '<span class="detail">'+detail+'</span>' : '');
+  r.scrollIntoView({behavior:'smooth', block:'center'});
+}
+$('saveBtn').addEventListener('click', ()=>{
+  const btn = $('saveBtn');
+  if(!currentUserId){ showResult('error','Sign in to Eddie Prevention to save your check-in.','Open Weekly Check-In from inside the app while signed in.'); return; }
+  btn.disabled = true; btn.textContent = 'Saving...';
+  const r = bmiNow(), bp = bpNow();
+  const fields = {
+    userId: fsStr(currentUserId),
+    app: fsStr(APP_ID),
+    schemaVersion: fsInt(3),
+    fiberGrams: fsDbl(fiber),
+    fiberRating: fsDbl(fiberRating(fiber)),
+    stressRating: fsDbl(+$('stress').value),
+    weeklyWin: fsStr($('win').value || ''),
+  };
+  if(r){ fields.bmi = fsDbl(r.bmi); fields.weightLb = fsDbl(r.weightLb); fields.heightIn = fsDbl(r.heightIn); store.set('ep_heightIn', String(r.heightIn)); }
+  if(bp){ fields.systolic = fsInt(bp.s); fields.diastolic = fsInt(bp.d); }
+  createDoc('weekly_logs', fields, ['createdTime','weekStart']).then(()=>{
+    btn.disabled = false; btn.textContent = 'Save Weekly Check-In';
+    showResult('success','✅ Weekly check-in saved!', (fiber>=25?'You met your fiber goal this week. ':'') +
+      `<a class="progress-link" href="${PROGRESS_PAGE}?v=1&view=weekly#t=${encodeURIComponent(idToken)}">📊 See my trends →</a>`);
+  }).catch(err=>{
+    btn.disabled = false; btn.textContent = 'Save Weekly Check-In';
+    showResult('error','Check-in not saved. Tap Save to try again.',
+      (err && err.code==='UNAUTHENTICATED') ? 'Your sign-in expired. Close Weekly Check-In and open it again.' : 'Error: '+((err&&err.code)||'unknown'));
+  });
+});
+paintFiber(); paintBmi(); paintBp();
+</script>
+</body>
+</html>

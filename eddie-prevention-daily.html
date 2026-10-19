@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>Eddie Prevention · Daily Check-In</title>
+<!--
+  Eddie Prevention — Daily Check-In (built from CancerLess daily-checkin-v2).
+  FlutterFlow WebView URL (Combine Text):
+    https://cancertreatmentspecialist.github.io/eddie-chat/eddie-prevention-daily.html?v=1#t=  +  Authenticated User → Id token (JWT token)
+  Saves to Firestore `daily_logs` as the signed-in user (owner-only rules apply).
+  Writes real units (activityMinutes, sleepHours, fruitCups, vegCups, alcoholDrinks, nicotineType, cravings)
+  AND the 1–5 fields (exercise, nutrition, sleep, tobaccoUsed, alcoholUsed, wellnessScore) used by My Progress.
+-->
+<style>
+:root{
+  --bg:#f3f8fc; --card:#fff; --ink:#1f2937; --ink-2:#4b5563; --muted:#6b7280; --line:#e3ebf3; --grid:#eaf1f7;
+  --brand:#1B9BD7; --brand-ink:#0b74a8; --deep:#0b4f8a; --brand-soft:#e6f5fc;
+  --good:#16a34a; --good-soft:#e8f7ee; --warn:#b45309; --warn-soft:#fff4e5;
+  --shadow:0 8px 24px rgba(11,79,138,.07), 0 1px 2px rgba(11,79,138,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg);overflow-x:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--ink);line-height:1.45;-webkit-font-smoothing:antialiased;padding-bottom:24px}
+.wrap{max-width:560px;margin:0 auto}
+.hero{background:linear-gradient(135deg,var(--brand),var(--deep));color:#fff;padding:26px 20px 66px;border-radius:0 0 30px 30px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.85}
+.hero h1{font-size:28px;font-weight:800;letter-spacing:-.02em;margin-top:2px}
+.hero p{font-size:14px;opacity:.92;margin-top:4px}
+main{padding:0 16px;margin-top:-46px}
+.card{background:var(--card);border-radius:22px;box-shadow:var(--shadow);padding:18px;margin-bottom:14px}
+.score{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.score .lab{font-size:13px;color:var(--muted)}
+.score .num{font-size:42px;font-weight:800;color:var(--deep);letter-spacing:-.03em;line-height:1}
+.score .num small{font-size:15px;color:var(--muted);font-weight:600;margin-left:3px}
+.met{background:var(--good-soft);color:var(--good);font-weight:800;font-size:13px;border-radius:20px;padding:8px 12px;text-align:center;white-space:nowrap}
+.q-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.q-head h2{font-size:16.5px;font-weight:750}
+.q-head .sub{font-size:13px;color:var(--muted);margin-top:2px}
+.info{flex-shrink:0;border:0;background:var(--bg);color:var(--brand-ink);font:inherit;font-weight:800;font-size:13px;width:30px;height:30px;border-radius:50%;cursor:pointer}
+.stepper{display:flex;align-items:center;justify-content:center;gap:14px;margin:14px 0 8px}
+.stepper button{width:46px;height:46px;border-radius:14px;border:0;background:var(--bg);color:var(--deep);font-size:24px;font-weight:700;cursor:pointer}
+.stepper button:active{transform:scale(.94)}
+.stepper .val{min-width:120px;text-align:center}
+.stepper .val b{font-size:34px;font-weight:800;letter-spacing:-.02em}
+.stepper .val span{display:block;font-size:12.5px;color:var(--muted);margin-top:-2px}
+.quick{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+.quick button{border:1.5px solid var(--line);background:#fff;color:var(--ink-2);font:inherit;font-size:13px;font-weight:650;border-radius:20px;padding:6px 12px;cursor:pointer}
+.quick button.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-ink)}
+.gauge{position:relative;height:12px;border-radius:7px;background:var(--grid);margin:6px 0 4px}
+.gauge .zone{position:absolute;top:0;bottom:0;background:#bfe9cf;border-radius:7px}
+.gauge .mark{position:absolute;top:-5px;width:22px;height:22px;margin-left:-11px;border-radius:50%;background:#fff;border:4px solid var(--deep);box-shadow:0 1px 4px rgba(0,0,0,.2);transition:left .35s cubic-bezier(.2,.8,.2,1)}
+.g-scale{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.status{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13.5px;font-weight:700}
+.status i{font-style:normal;font-size:16px}
+.status.good{color:var(--good)} .status.warn{color:var(--warn)}
+.status .tgt{margin-left:auto;font-weight:600;color:var(--muted);font-size:12.5px;text-align:right}
+.src{display:none;margin-top:12px;background:var(--bg);border-radius:12px;padding:10px 12px;font-size:12.5px;color:var(--ink-2)}
+.src.open{display:block}
+.src a{color:var(--brand-ink);font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.chip{border:2px solid var(--brand);background:#fff;color:var(--brand-ink);font:inherit;font-weight:700;font-size:14px;border-radius:24px;padding:9px 16px;cursor:pointer}
+.chip.on{background:var(--brand);color:#fff}
+.help{display:none;margin-top:12px;background:var(--warn-soft);border-radius:14px;padding:12px 14px;font-size:13px;color:#7c2d12}
+.help.show{display:block}
+.help a{color:#7c2d12;font-weight:800}
+textarea{width:100%;min-height:84px;border:1px solid #d1d5db;border-radius:14px;padding:12px;font:inherit;font-size:15px;resize:none;margin-top:10px}
+.save{display:block;width:100%;border:0;border-radius:18px;padding:17px;color:#fff;font:inherit;font-size:17px;font-weight:800;background:linear-gradient(135deg,var(--brand),var(--deep));cursor:pointer;box-shadow:0 8px 20px rgba(11,79,138,.25)}
+.save:disabled{opacity:.6;cursor:wait}
+.result{display:none;border-radius:18px;padding:18px;text-align:center;margin-top:14px}
+.result.success{display:block;background:#ecfdf5;border:1px solid #86efac}
+.result.error{display:block;background:#fee2e2;border:1px solid #fca5a5}
+.result .detail{display:block;margin-top:6px;font-size:12.5px;color:var(--muted)}
+.progress-link{display:block;margin-top:12px;padding:12px 16px;border-radius:14px;background:linear-gradient(135deg,var(--brand),var(--deep));color:#fff;font-weight:800;text-decoration:none}
+.note{font-size:11.5px;color:var(--muted);text-align:center;padding:14px 18px 0}
+.note a{color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">Eddie Prevention</div>
+    <h1>Daily Check-In</h1>
+    <p>Small habits, logged daily. Every healthy choice counts.</p>
+  </header>
+  <main>
+    <div class="card">
+      <div class="score">
+        <div><div class="lab">Today's Wellness Score</div><div class="num"><span id="score">0</span><small>/ 23</small></div></div>
+        <div class="met" id="metCount">0 of 6 goals met</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q-head"><div><h2>🚭 Tobacco &amp; nicotine</h2><div class="sub">Did you smoke, vape, or use any nicotine today?</div></div>
+        <button class="info" aria-label="Quit support" data-open="tobHelpInfo">i</button></div>
+      <div class="chips" data-group="nicotine">
+        <button class="chip on" data-v="none">None 🎉</button>
+        <button class="chip" data-v="cigarettes">Cigarettes</button>
+        <button class="chip" data-v="vape">Vape</button>
+        <button class="chip" data-v="other">Cigars / chew / pouches</button>
+      </div>
+      <div class="help" id="tobHelp">Every tobacco-free day is a fresh start. Free quit coaching: call <a href="tel:18007848669">1-800-QUIT-NOW</a> or visit <a href="https://smokefree.gov/" target="_blank" rel="noopener">smokefree.gov</a>. Ask your doctor about nicotine replacement and quit medicines, which can double your chances of quitting.</div>
+      <div class="src" id="tobHelpInfo">Quitting tobacco at any age lowers your risk of cancer, heart disease, stroke, and lung disease. Vapes contain nicotine, which is addictive.<br>
+        Source: <a href="https://www.cdc.gov/tobacco/about/index.html" target="_blank" rel="noopener">CDC: Smoking and Tobacco Use</a></div>
+    </div>
+
+    <div id="habits"></div>
+
+    <div class="help" id="alcHelp" style="margin:-4px 0 14px">If you drink heavily every day, <b>talk with your doctor before stopping suddenly</b> — alcohol withdrawal can be dangerous. Free, confidential help 24/7: SAMHSA <a href="tel:18006624357">1-800-662-4357</a>.</div>
+
+    <div class="card">
+      <div class="q-head"><div><h2>🌊 Cravings</h2><div class="sub">Any cravings for nicotine or alcohol today?</div></div></div>
+      <div class="chips" data-group="cravings">
+        <button class="chip on" data-v="none">None</button>
+        <button class="chip" data-v="mild">Mild</button>
+        <button class="chip" data-v="strong">Strong</button>
+      </div>
+      <div class="help" id="cravHelp">Cravings usually pass in 5–10 minutes. Try a short walk, a glass of water, slow deep breaths, or texting a friend. Logging them helps you spot your triggers.</div>
+    </div>
+
+    <div class="card">
+      <div class="q-head"><div><h2>💡 Goal for tomorrow</h2><div class="sub">Optional</div></div></div>
+      <textarea id="reflection" placeholder="Walk 30 minutes, skip the evening drink, add a vegetable to lunch..."></textarea>
+    </div>
+
+    <button class="save" id="saveBtn">Save Today's Check-In</button>
+    <div class="result" id="result" role="status" aria-live="polite"></div>
+    <p class="note">Targets are general guidelines for adults. Talk with your doctor about what's right for you. Educational purposes only; not a substitute for professional medical advice. In crisis, call or text <a href="tel:988">988</a>.</p>
+  </main>
+</div>
+
+<script>
+// ===================== CONFIG =====================
+// If Eddie Prevention uses its own Firebase project, change these two lines to match it.
+const FIREBASE_API_KEY = "AIzaSyD9QAG0NDfjQ05-WhYJdmcaS8GazK3M8rY";
+const FIREBASE_PROJECT = "cancer-less-rka8v5";
+const APP_ID = "eddie-prevention";
+const PROGRESS_PAGE = "eddie-prevention-progress.html";
+
+// ===================== AUTH / FIRESTORE =====================
+const hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
+const queryParams = new URLSearchParams(location.search);
+const idToken = (hashParams.get('t') || queryParams.get('t') || '').trim();
+function uidFromToken(tok){
+  try{
+    const part = tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    const json = JSON.parse(decodeURIComponent(escape(atob(part + '==='.slice((part.length+3)%4)))));
+    return json.user_id || json.sub || '';
+  }catch(e){ return ''; }
+}
+const currentUserId = idToken ? uidFromToken(idToken) : '';
+function newDocId(){
+  const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const bytes=new Uint8Array(20); crypto.getRandomValues(bytes);
+  let id=''; for(const b of bytes){ id+=chars[b%chars.length]; } return id;
+}
+const fsInt = n => ({integerValue:String(Math.round(n))});
+const fsDbl = n => ({doubleValue:Number(n)});
+const fsStr = s => ({stringValue:String(s)});
+const fsBool = b => ({booleanValue:!!b});
+function createDoc(collection, fields, timestampFields){
+  const base='projects/'+FIREBASE_PROJECT+'/databases/(default)/documents';
+  const body={writes:[{
+    update:{name:base+'/'+collection+'/'+newDocId(), fields:fields},
+    currentDocument:{exists:false},
+    updateTransforms:timestampFields.map(f=>({fieldPath:f, setToServerValue:'REQUEST_TIME'}))
+  }]};
+  return fetch('https://firestore.googleapis.com/v1/'+base+':commit?key='+FIREBASE_API_KEY,{
+    method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+idToken}, body:JSON.stringify(body)
+  }).then(r=>{
+    if(r.ok) return r.json();
+    return r.json().catch(()=>({})).then(j=>{ const s=(j.error&&j.error.status)||('HTTP '+r.status); const e=new Error(s); e.code=s; throw e; });
+  });
+}
+
+// ===================== TARGETS (general adult guidelines) =====================
+const SOURCES = {
+  activity:{label:'U.S. Physical Activity Guidelines (HHS)', url:'https://odphp.health.gov/our-work/nutrition-physical-activity/physical-activity-guidelines/current-guidelines'},
+  acs:{label:'American Cancer Society Guideline for Diet and Physical Activity', url:'https://www.cancer.org/cancer/risk-prevention/diet-physical-activity/acs-guidelines-nutrition-physical-activity-cancer-prevention/guidelines.html'},
+  sleep:{label:'CDC: About Sleep', url:'https://www.cdc.gov/sleep/about/index.html'},
+  dga:{label:'Dietary Guidelines for Americans', url:'https://www.dietaryguidelines.gov/'},
+  niaaa:{label:'NIAAA: Rethinking Drinking', url:'https://www.rethinkingdrinking.niaaa.nih.gov/'},
+};
+const HABITS = [
+  { key:'alcoholDrinks', emoji:'🍷', title:'Alcohol', ask:'Alcoholic drinks today',
+    unit:'drinks', step:1, min:0, max:20, start:0, quick:[0,1,2,3,4],
+    scale:[0,5], zone:[0,.5], goal:v=>v===0, lowerIsBetter:true,
+    target:'Best: none', note:'Less is better for your health — no amount of alcohol is risk-free. If you drink, limit it to 1 drink a day for women or 2 for men. 1 drink = 12 oz beer, 5 oz wine, or 1.5 oz liquor.',
+    src:['niaaa','dga'] },
+  { key:'activityMinutes', emoji:'🏃', title:'Physical activity', ask:'Minutes of walking or other activity today',
+    unit:'minutes', step:5, min:0, max:240, start:0, quick:[0,15,30,45,60],
+    scale:[0,60], zone:[30,60], goal:v=>v>=30,
+    target:'Goal: 30+ min/day', note:'Adults should get 150–300 minutes of moderate activity (like brisk walking) each week — about 30 minutes on 5 days. Activity lowers the risk of heart disease, diabetes, and several cancers.',
+    src:['activity','acs'] },
+  { key:'sleepHours', emoji:'😴', title:'Sleep', ask:'Hours you slept last night',
+    unit:'hours', step:.5, min:0, max:14, start:7, quick:[5,6,7,8,9],
+    scale:[4,11], zone:[7,9], goal:v=>v>=7 && v<=9,
+    target:'Goal: 7–9 hours', note:'Most adults need 7 or more hours of sleep each night for good health.',
+    src:['sleep'] },
+  { key:'fruitCups', emoji:'🍎', title:'Fruit', ask:'Cups of fruit today',
+    unit:'cups', step:.5, min:0, max:8, start:0, quick:[0,.5,1,1.5,2],
+    scale:[0,3], zone:[1.5,3], goal:v=>v>=1.5,
+    target:'Goal: 1½–2 cups', note:'Adults need about 1½–2 cups of fruit a day. 1 cup ≈ a medium apple, a large banana, or a cup of berries. Whole fruit is better than juice.',
+    src:['dga'] },
+  { key:'vegCups', emoji:'🥦', title:'Vegetables', ask:'Cups of vegetables today',
+    unit:'cups', step:.5, min:0, max:10, start:0, quick:[0,1,2,2.5,3],
+    scale:[0,4], zone:[2,4], goal:v=>v>=2,
+    target:'Goal: 2–3 cups', note:'Adults need about 2–3 cups of vegetables a day. 1 cup ≈ 2 cups of raw leafy greens, or a cup of cooked or chopped vegetables.',
+    src:['dga'] },
+];
+const state = {}; HABITS.forEach(h=>state[h.key]=h.start);
+let nicotineType = 'none', cravings = 'none';
+
+// Map real units onto the 1–5 scale (keeps My Progress charts working).
+function activityScore(m){ return m>=45?5 : m>=30?4 : m>=20?3 : m>=10?2 : 1; }
+function sleepScore(h){ return (h>=7&&h<=9)?5 : (h>9)?4 : h>=6?3 : h>=5?2 : 1; }
+function nutritionScore(c){ return c>=4?5 : c>=3?4 : c>=2?3 : c>=1?2 : 1; }
+// Score: activity + sleep + nutrition (15) + tobacco-free 4 + alcohol-free 4 = 23
+function calc(){
+  const exercise = activityScore(state.activityMinutes);
+  const sleep = sleepScore(state.sleepHours);
+  const nutrition = nutritionScore(state.fruitCups + state.vegCups);
+  const tobaccoFree = nicotineType === 'none', alcoholFree = state.alcoholDrinks === 0;
+  let score = exercise + sleep + nutrition + (tobaccoFree?4:0) + (alcoholFree?4:0);
+  const met = [tobaccoFree, alcoholFree].filter(Boolean).length +
+    ['activityMinutes','sleepHours','fruitCups','vegCups'].filter(k=>HABITS.find(h=>h.key===k).goal(state[k])).length;
+  return {exercise, sleep, nutrition, score, met, tobaccoFree};
+}
+
+// ===================== UI =====================
+const fmt = v => (Math.round(v*10)/10).toString().replace(/\.0$/,'');
+const pct = (h,v) => Math.max(0, Math.min(100, (v - h.scale[0]) / (h.scale[1] - h.scale[0]) * 100));
+function srcHtml(h){
+  return h.note + '<br>' + h.src.map(k=>`Source: <a href="${SOURCES[k].url}" target="_blank" rel="noopener">${SOURCES[k].label}</a>`).join('<br>');
+}
+const box = document.getElementById('habits');
+box.innerHTML = HABITS.map(h=>`
+  <div class="card" data-k="${h.key}">
+    <div class="q-head"><div><h2>${h.emoji} ${h.title}</h2><div class="sub">${h.ask}</div></div>
+      <button class="info" aria-label="About this target" data-info>i</button></div>
+    <div class="stepper">
+      <button aria-label="Less" data-d="-1">−</button>
+      <div class="val"><b data-val>${fmt(h.start)}</b><span>${h.unit}</span></div>
+      <button aria-label="More" data-d="1">+</button>
+    </div>
+    <div class="quick">${h.quick.map(q=>`<button data-q="${q}">${fmt(q)}</button>`).join('')}</div>
+    <div class="gauge" aria-hidden="true"><div class="zone" style="left:${pct(h,h.zone[0])}%;width:${Math.max(3,pct(h,h.zone[1])-pct(h,h.zone[0]))}%"></div><div class="mark" data-mark></div></div>
+    <div class="g-scale"><span>${fmt(h.scale[0])}</span><span>${fmt(h.scale[1])}+</span></div>
+    <div class="status" data-status></div>
+    <div class="src" data-src>${srcHtml(h)}</div>
+  </div>`).join('');
+
+function paint(){
+  HABITS.forEach(h=>{
+    const el = box.querySelector(`[data-k="${h.key}"]`), v = state[h.key];
+    el.querySelector('[data-val]').textContent = fmt(v);
+    el.querySelector('[data-mark]').style.left = pct(h,v) + '%';
+    el.querySelectorAll('.quick button').forEach(b=>b.classList.toggle('on', +b.dataset.q === v));
+    const ok = h.goal(v);
+    let msg;
+    if(ok) msg = h.lowerIsBetter ? 'Alcohol-free day' : 'Goal met';
+    else if(h.lowerIsBetter) msg = v <= 1 ? 'Within the daily limit' : 'Above the recommended limit';
+    else if(h.key==='sleepHours' && v > 9) msg = 'More than recommended';
+    else msg = 'Getting there';
+    el.querySelector('[data-status]').className = 'status ' + (ok ? 'good' : 'warn');
+    el.querySelector('[data-status]').innerHTML = `<i>${ok?'✅':'•'}</i>${msg}<span class="tgt">${h.target}</span>`;
+  });
+  document.getElementById('alcHelp').classList.toggle('show', state.alcoholDrinks >= 4);
+  document.getElementById('tobHelp').classList.toggle('show', nicotineType !== 'none');
+  document.getElementById('cravHelp').classList.toggle('show', cravings !== 'none');
+  const c = calc();
+  document.getElementById('score').textContent = c.score;
+  document.getElementById('metCount').textContent = `${c.met} of 6 goals met`;
+}
+box.addEventListener('click', e=>{
+  const card = e.target.closest('.card'); if(!card) return;
+  const h = HABITS.find(x=>x.key===card.dataset.k);
+  if(e.target.dataset.d){ state[h.key] = Math.max(h.min, Math.min(h.max, Math.round((state[h.key] + h.step*(+e.target.dataset.d))*10)/10)); paint(); }
+  else if(e.target.dataset.q !== undefined){ state[h.key] = +e.target.dataset.q; paint(); }
+  else if(e.target.hasAttribute('data-info')){ card.querySelector('[data-src]').classList.toggle('open'); }
+});
+document.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>document.getElementById(b.dataset.open).classList.toggle('open')));
+document.querySelectorAll('.chips').forEach(g=>g.addEventListener('click', e=>{
+  const b = e.target.closest('.chip'); if(!b) return;
+  g.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on', x===b));
+  if(g.dataset.group==='nicotine') nicotineType = b.dataset.v;
+  else cravings = b.dataset.v;
+  paint();
+}));
+
+function showResult(type, message, detail){
+  const r = document.getElementById('result');
+  r.className = 'result ' + type;
+  r.innerHTML = '<strong>'+message+'</strong>' + (detail ? '<span class="detail">'+detail+'</span>' : '');
+  r.scrollIntoView({behavior:'smooth', block:'center'});
+}
+document.getElementById('saveBtn').addEventListener('click', ()=>{
+  const btn = document.getElementById('saveBtn');
+  if(!currentUserId){ showResult('error','Sign in to Eddie Prevention to save your check-in.','Open Daily Check-In from inside the app while signed in.'); return; }
+  btn.disabled = true; btn.textContent = 'Saving...';
+  const c = calc();
+  const fields = {
+    userId: fsStr(currentUserId),
+    app: fsStr(APP_ID),
+    schemaVersion: fsInt(3),
+    activityMinutes: fsInt(state.activityMinutes),
+    sleepHours: fsDbl(state.sleepHours),
+    fruitCups: fsDbl(state.fruitCups),
+    vegCups: fsDbl(state.vegCups),
+    alcoholDrinks: fsInt(state.alcoholDrinks),
+    nicotineType: fsStr(nicotineType),
+    cravings: fsStr(cravings),
+    exercise: fsInt(c.exercise), nutrition: fsInt(c.nutrition), sleep: fsInt(c.sleep),
+    tobaccoUsed: fsBool(!c.tobaccoFree), alcoholUsed: fsBool(state.alcoholDrinks > 0),
+    reflection: fsStr(document.getElementById('reflection').value || ''),
+    wellnessScore: fsInt(c.score),
+  };
+  createDoc('daily_logs', fields, ['createdTime']).then(()=>{
+    btn.disabled = false; btn.textContent = "Save Today's Check-In";
+    showResult('success','✅ Check-in saved!', `${c.met} of 6 daily goals met · Wellness score ${c.score} / 23` +
+      `<a class="progress-link" href="${PROGRESS_PAGE}?v=1#t=${encodeURIComponent(idToken)}">📊 See my progress &amp; streaks →</a>`);
+  }).catch(err=>{
+    btn.disabled = false; btn.textContent = "Save Today's Check-In";
+    showResult('error','Check-in not saved. Tap Save to try again.',
+      (err && err.code==='UNAUTHENTICATED') ? 'Your sign-in expired. Close Daily Check-In and open it again.' : 'Error: '+((err&&err.code)||'unknown'));
+  });
+});
+paint();
+</script>
+</body>
+</html>

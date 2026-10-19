@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>Eddie Prevention · My Progress</title>
+<!--
+  Eddie Prevention — My Progress (built from CancerLess dashboard v2).
+  Adds tobacco-free / alcohol-free streaks, cravings, and blood pressure. Reads CancerLess and Eddie Prevention check-ins.
+  FlutterFlow WebView URL (Combine Text):
+    https://cancertreatmentspecialist.github.io/eddie-chat/eddie-prevention-progress.html?v=1#t=  +  Authenticated User → Id token (JWT token)
+  Open on the Weekly tab:  ...eddie-prevention-progress.html?v=1&view=weekly#t=  + token
+  Data is read with the signed-in user's own token, so owner-only Firestore rules apply.
+-->
+<style>
+:root{
+  --bg:#f4f7fb; --card:#ffffff; --ink:#1f2937; --ink-2:#4b5563; --muted:#6b7280; --line:#e5eaf1;
+  --teal:#1B9BD7; --teal-ink:#0b74a8; --blue:#0b4f8a; --blue-2:#0b5cad;
+  --series-a:#1B9BD7; --series-b:#0b5cad;
+  --good:#16a34a; --good-soft:#e8f7ee; --warn:#d97706; --warn-soft:#fff4e5; --bad:#dc2626; --bad-soft:#fdecec;
+  --grid:#edf1f6; --shadow:0 8px 24px rgba(16,42,84,.07), 0 1px 2px rgba(16,42,84,.05);
+  --r:22px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg)}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;line-height:1.45;padding-bottom:28px}
+.wrap{max-width:560px;margin:0 auto}
+
+/* ---------- hero ---------- */
+.hero{background:linear-gradient(135deg,var(--teal),var(--blue));color:#fff;padding:26px 20px 64px;border-radius:0 0 30px 30px;position:relative;overflow:hidden}
+.hero:after{content:"";position:absolute;right:-60px;top:-60px;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,.08)}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.85}
+.hero h1{font-size:28px;font-weight:800;letter-spacing:-.02em;margin-top:2px}
+.hero p{font-size:14px;opacity:.9;margin-top:4px}
+.seg{display:flex;background:rgba(255,255,255,.18);border-radius:14px;padding:4px;margin-top:18px;position:relative;z-index:1}
+.seg button{flex:1;border:0;background:transparent;color:#fff;font:inherit;font-weight:700;font-size:14px;padding:10px 0;border-radius:11px;cursor:pointer;transition:background .2s,color .2s}
+.seg button[aria-selected="true"]{background:#fff;color:var(--blue);box-shadow:0 2px 8px rgba(0,0,0,.12)}
+
+/* ---------- layout ---------- */
+main{padding:0 16px;margin-top:-44px;position:relative}
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:18px;margin-bottom:14px;animation:rise .45s ease both}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.card h2{font-size:16px;font-weight:750;letter-spacing:-.01em}
+.card .sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}
+.pills{display:flex;background:var(--bg);border-radius:10px;padding:3px;flex-shrink:0}
+.pills button{border:0;background:transparent;font:inherit;font-size:12px;font-weight:700;color:var(--muted);padding:5px 10px;border-radius:8px;cursor:pointer}
+.pills button[aria-pressed="true"]{background:#fff;color:var(--blue);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+
+/* ---------- summary card ---------- */
+.summary{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center}
+.ring{position:relative;width:118px;height:118px}
+.ring svg{display:block}
+.ring .val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring .num{font-size:36px;font-weight:800;color:var(--blue);letter-spacing:-.03em;line-height:1}
+.ring .of{font-size:12px;color:var(--muted);margin-top:3px}
+.stats{display:grid;gap:8px}
+.stat{display:flex;align-items:center;gap:10px;background:var(--bg);border-radius:14px;padding:9px 11px}
+.stat .ico{font-size:20px;width:26px;text-align:center}
+.stat b{font-size:17px;font-weight:800;display:block;line-height:1.1}
+.stat span{font-size:12px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;border-radius:20px;padding:4px 10px;margin-top:12px}
+.chip.up{background:var(--good-soft);color:var(--good)}
+.chip.down{background:var(--warn-soft);color:var(--warn)}
+.chip.flat{background:var(--bg);color:var(--ink-2)}
+
+/* ---------- charts ---------- */
+.chart{position:relative;width:100%;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.chart svg{display:block;overflow:visible}
+.tip{position:absolute;top:0;pointer-events:none;background:#111827;color:#fff;font-size:12px;line-height:1.35;padding:7px 10px;border-radius:10px;white-space:nowrap;opacity:0;transform:translate(-50%,-6px);transition:opacity .12s;z-index:2;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.tip b{font-size:14px}
+.tip .dim{opacity:.7}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-2);margin:2px 0 8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.note{font-size:12.5px;color:var(--muted);text-align:center;padding:22px 8px}
+
+/* ---------- calendar ---------- */
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cal .dow{font-size:11px;color:var(--muted);text-align:center;font-weight:600}
+.cal .d{aspect-ratio:1;border-radius:9px;background:var(--grid);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);cursor:pointer;border:2px solid transparent;transition:transform .1s}
+.cal .d.has{color:#fff;font-weight:700}
+.cal .d.today{border-color:var(--blue)}
+.cal .d.future{background:transparent;cursor:default}
+.cal .d:active{transform:scale(.92)}
+.cal-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:12px;color:var(--muted);min-height:18px}
+.scale{display:flex;align-items:center;gap:3px}
+.scale i{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+/* ---------- habits ---------- */
+.habit{padding:9px 0}
+.habit + .habit{border-top:1px solid var(--line)}
+.habit-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.habit-name{font-size:14px;font-weight:650}
+.habit-val{font-size:13px;color:var(--ink-2);font-weight:700;white-space:nowrap}
+.trend{font-size:11.5px;font-weight:700;margin-left:6px}
+.trend.up{color:var(--good)} .trend.down{color:var(--warn)}
+.bar{height:10px;background:var(--grid);border-radius:6px;margin-top:7px;overflow:hidden}
+.bar > div{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--teal),var(--blue));width:0;transition:width .8s cubic-bezier(.2,.8,.2,1)}
+
+/* ---------- choices ---------- */
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.choice{background:var(--bg);border-radius:16px;padding:14px 10px;text-align:center}
+.choice .mini{width:64px;height:64px;margin:0 auto 6px;position:relative}
+.choice .mini b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800}
+.choice span{font-size:12px;color:var(--muted)}
+
+/* ---------- screening / insight ---------- */
+.status{display:flex;gap:12px;align-items:flex-start}
+.badge{flex-shrink:0;width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px}
+.status h3{font-size:15px;font-weight:750}
+.status p{font-size:13px;color:var(--ink-2);margin-top:2px}
+.insight{background:linear-gradient(135deg,#eafafa,#eaf2fb);border:1px solid #d6ecf3}
+.insight .status p{color:var(--ink)}
+
+/* ---------- states ---------- */
+.state{text-align:center;padding:30px 18px}
+.state .big{font-size:42px}
+.state h2{margin-top:8px}
+.state p{font-size:13.5px;color:var(--ink-2);margin-top:6px}
+.skel{height:14px;border-radius:7px;background:linear-gradient(90deg,#eef2f7 25%,#f7f9fc 50%,#eef2f7 75%);background-size:200% 100%;animation:sh 1.2s infinite;margin:10px 0}
+@keyframes sh{to{background-position:-200% 0}}
+.go{margin-top:16px;border:0;font:inherit;font-weight:700;font-size:15px;color:#fff;background:linear-gradient(135deg,var(--teal),var(--blue));padding:13px 26px;border-radius:14px;cursor:pointer;box-shadow:0 6px 16px rgba(0,87,168,.25)}
+.hint{display:none;margin-top:12px!important;font-size:13px;background:var(--bg);border-radius:12px;padding:10px}
+.explain{margin-top:12px;font-size:13px;color:var(--ink-2)}
+.explain summary{cursor:pointer;font-weight:700;color:var(--blue);list-style:none}
+.explain summary::-webkit-details-marker{display:none}
+.explain summary:before{content:"ⓘ ";}
+.explain p{margin-top:6px;background:var(--bg);border-radius:12px;padding:10px 12px;line-height:1.5}
+.tg{padding:12px 0}
+.tg + .tg{border-top:1px solid var(--line)}
+.tg-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.tg-name{font-size:14px;font-weight:700}
+.tg-val{font-size:16px;font-weight:800;white-space:nowrap}
+.tg-val small{font-size:12px;font-weight:600;color:var(--muted)}
+.tg-bar{position:relative;height:10px;border-radius:6px;background:var(--grid);margin:9px 0 7px}
+.tg-zone{position:absolute;top:0;bottom:0;background:#bfe9cf;border-radius:6px}
+.tg-mark{position:absolute;top:-5px;width:20px;height:20px;margin-left:-10px;border-radius:50%;background:#fff;border:4px solid var(--blue);box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.tg-foot{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tg-st{font-size:12.5px;font-weight:700;color:var(--muted)}
+.tg-st.ok{color:var(--good)} .tg-st.warn{color:#b45309}
+.tg-i{border:0;background:transparent;color:var(--blue);font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;padding:2px 0}
+.tg-src{display:none;margin-top:8px;background:var(--bg);border-radius:12px;padding:10px 12px;font-size:12.5px;color:var(--ink-2);line-height:1.5}
+.tg-src.open{display:block}
+.tg-src a{color:var(--blue);font-weight:700}
+.tg-legend{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-top:-4px}
+.tg-legend i{display:inline-block;width:18px;height:8px;border-radius:4px;background:#bfe9cf}
+footer{font-size:11px;color:var(--muted);text-align:center;padding:6px 24px 0}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">Eddie Prevention</div>
+    <h1>My Progress</h1>
+    <p id="heroSub">Your healthy habits and streaks, at a glance.</p>
+    <div class="seg" role="tablist">
+      <button role="tab" data-view="daily" aria-selected="true">Daily</button>
+      <button role="tab" data-view="weekly" aria-selected="false">Weekly</button>
+    </div>
+  </header>
+  <main id="app">
+    <div class="card"><div class="skel" style="width:40%"></div><div class="skel"></div><div class="skel" style="width:70%"></div></div>
+    <div class="card"><div class="skel" style="height:150px"></div></div>
+  </main>
+  <footer>Targets are general guidelines for adults; talk with your doctor about what's right for you. Educational purposes only. Not a substitute for professional medical advice. In crisis, call or text 988.</footer>
+</div>
+
+<script>
+// ===================== CONFIG / AUTH =====================
+// If Eddie Prevention uses its own Firebase project, change these two lines to match it.
+const FIREBASE_API_KEY = "AIzaSyD9QAG0NDfjQ05-WhYJdmcaS8GazK3M8rY";
+const FIREBASE_PROJECT = "cancer-less-rka8v5";
+const hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
+const queryParams = new URLSearchParams(location.search);
+const idToken = (hashParams.get('t') || queryParams.get('t') || '').trim();
+
+function uidFromToken(tok){
+  try{
+    const part = tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    const json = JSON.parse(decodeURIComponent(escape(atob(part + '==='.slice((part.length+3)%4)))));
+    return json.user_id || json.sub || '';
+  }catch(e){ return ''; }
+}
+const uid = idToken ? uidFromToken(idToken) : '';
+
+// ===================== FIRESTORE (REST) =====================
+function fsValue(v){
+  if(!v) return null;
+  if('integerValue' in v) return Number(v.integerValue);
+  if('doubleValue' in v) return Number(v.doubleValue);
+  if('booleanValue' in v) return v.booleanValue;
+  if('stringValue' in v) return v.stringValue;
+  if('timestampValue' in v) return new Date(v.timestampValue);
+  if('nullValue' in v) return null;
+  return null;
+}
+async function queryLogs(collection, limit){
+  const base = 'projects/'+FIREBASE_PROJECT+'/databases/(default)/documents';
+  const body = {structuredQuery:{
+    from:[{collectionId:collection}],
+    where:{fieldFilter:{field:{fieldPath:'userId'},op:'EQUAL',value:{stringValue:uid}}},
+    orderBy:[{field:{fieldPath:'createdTime'},direction:'DESCENDING'}],
+    limit:limit
+  }};
+  const r = await fetch('https://firestore.googleapis.com/v1/'+base+':runQuery?key='+FIREBASE_API_KEY,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+idToken},
+    body:JSON.stringify(body)
+  });
+  const j = await r.json().catch(()=>null);
+  const errObj = (j && !Array.isArray(j) && j.error) || (Array.isArray(j) && j[0] && j[0].error);
+  if(!r.ok || errObj){
+    const e = new Error((errObj && errObj.status) || ('HTTP '+r.status));
+    e.code = (errObj && errObj.status) || ('HTTP '+r.status);
+    throw e;
+  }
+  return (j||[]).filter(x=>x.document).map(x=>{
+    const out = {};
+    const f = x.document.fields || {};
+    for(const k in f) out[k] = fsValue(f[k]);
+    return out;
+  });
+}
+
+// ===================== HELPERS =====================
+const num = v => (typeof v === 'number' && isFinite(v)) ? v : (typeof v === 'string' && v.trim() !== '' && isFinite(+v) ? +v : null);
+const pick = (...vals) => { for(const v of vals){ if(v !== null && v !== undefined) return v; } return null; };
+const dayKey = d => d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
+const dayOnly = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const addDays = (d,n) => new Date(d.getFullYear(), d.getMonth(), d.getDate()+n);
+const md = d => (d.getMonth()+1)+'/'+d.getDate();
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DOWS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const longDate = d => DOWS[d.getDay()]+', '+MONTHS[d.getMonth()]+' '+d.getDate();
+const avg = arr => { const a = arr.filter(v=>v!==null); return a.length ? a.reduce((s,v)=>s+v,0)/a.length : null; };
+const fmt = (v,dp=1) => v===null ? '—' : (Math.abs(v-Math.round(v))<1e-9 ? String(Math.round(v)) : v.toFixed(dp));
+const esc = s => String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const bool = v => typeof v === 'boolean' ? v : (v==='true' ? true : v==='false' ? false : null);
+
+function normDaily(m){
+  const t = m.createdTime instanceof Date ? m.createdTime : (m.logDate instanceof Date ? m.logDate : null);
+  if(!t) return null;
+  const tob = pick(bool(m.tobaccoUsed), bool(m.smokedToday), typeof m.nicotineType === 'string' ? m.nicotineType !== 'none' : null);
+  const alc = bool(m.alcoholUsed);
+  return {
+    t, day: dayOnly(t),
+    activity: pick(num(m.exercise), num(m.activityScore)),
+    nutrition: pick(num(m.nutrition), num(m.nutritionScore)),
+    sleep: pick(num(m.sleep), num(m.sleepScore)),
+    tobaccoFree: tob===null ? null : !tob,
+    alcoholFree: alc===null ? (num(m.alcoholDrinks)===null ? null : num(m.alcoholDrinks)===0) : !alc,
+    score: num(m.wellnessScore),
+    minutes: num(m.activityMinutes),
+    sleepHrs: num(m.sleepHours),
+    fruit: num(m.fruitCups),
+    veg: num(m.vegCups),
+    drinks: num(m.alcoholDrinks),
+    cravings: typeof m.cravings === 'string' ? m.cravings : null,
+  };
+}
+function normWeekly(m){
+  const t = pick(m.weekStart instanceof Date ? m.weekStart : null, m.createdTime instanceof Date ? m.createdTime : null);
+  if(!t) return null;
+  const bmi = pick(num(m.bmi));
+  return {
+    t,
+    fiber: pick(num(m.fiberRating), num(m.fiber)),
+    produce: pick(num(m.produceRating), num(m.produce)),
+    stress: pick(num(m.stressRating), num(m.stress)),
+    bmi: (bmi===null || bmi<=0) ? null : bmi,
+    fiberGrams: num(m.fiberGrams),
+    sys: num(m.systolic), dia: num(m.diastolic),
+  };
+}
+// latest entry per calendar day, ascending
+function byDay(entries){
+  const best = new Map();
+  for(const e of entries){
+    const k = dayKey(e.day), cur = best.get(k);
+    if(!cur || e.t > cur.t) best.set(k, e);
+  }
+  return [...best.values()].sort((a,b)=>a.day-b.day);
+}
+function streak(days){
+  const set = new Set(days.map(e=>dayKey(e.day)));
+  let c = dayOnly(new Date());
+  if(!set.has(dayKey(c))) c = addDays(c,-1);
+  let n = 0;
+  while(set.has(dayKey(c))){ n++; c = addDays(c,-1); }
+  return n;
+}
+
+// consecutive logged days (ending today or yesterday) where key === true
+function habitStreak(days, key){
+  const map = new Map(days.map(e=>[dayKey(e.day), e]));
+  let c = dayOnly(new Date());
+  if(!map.has(dayKey(c))) c = addDays(c,-1);
+  let n = 0;
+  while(map.has(dayKey(c)) && map.get(dayKey(c))[key] === true){ n++; c = addDays(c,-1); }
+  return n;
+}
+function bestStreak(days, key){
+  let best = 0, run = 0, prev = null;
+  for(const e of days){
+    const consecutive = prev && (e.day - prev.day) <= 86400000*1.05;
+    if(e[key] === true){ run = consecutive ? run+1 : 1; } else { run = 0; }
+    if(e[key] !== true) run = 0;
+    best = Math.max(best, run); prev = e;
+  }
+  return best;
+}
+
+// ===================== SVG CHARTS =====================
+const charts = [];
+function registerChart(el, draw){ charts.push({el,draw}); draw(el); }
+let rzT; window.addEventListener('resize', ()=>{ clearTimeout(rzT); rzT = setTimeout(()=>charts.forEach(c=>c.el.isConnected && c.draw(c.el)), 120); });
+
+// Monotone cubic path (no overshoot)
+function smoothPath(pts){
+  const n = pts.length;
+  if(n < 2) return '';
+  if(n === 2) return `M${pts[0][0]},${pts[0][1]}L${pts[1][0]},${pts[1][1]}`;
+  const dx=[], dy=[], m=[], t=[];
+  for(let i=0;i<n-1;i++){ dx[i]=pts[i+1][0]-pts[i][0]; dy[i]=pts[i+1][1]-pts[i][1]; m[i]=dy[i]/dx[i]; }
+  t[0]=m[0]; t[n-1]=m[n-2];
+  for(let i=1;i<n-1;i++) t[i] = (m[i-1]*m[i] <= 0) ? 0 : 3*(dx[i-1]+dx[i]) / ((2*dx[i]+dx[i-1])/m[i-1] + (dx[i]+2*dx[i-1])/m[i]);
+  let d = `M${pts[0][0]},${pts[0][1]}`;
+  for(let i=0;i<n-1;i++){
+    const h = dx[i]/3;
+    d += `C${pts[i][0]+h},${pts[i][1]+t[i]*h} ${pts[i+1][0]-h},${pts[i+1][1]-t[i+1]*h} ${pts[i+1][0]},${pts[i+1][1]}`;
+  }
+  return d;
+}
+
+function attachHover(el, svg, xs, show){
+  const tip = el.querySelector('.tip');
+  const cross = svg.querySelector('.cross');
+  const dots = svg.querySelectorAll('.dot');
+  function at(clientX){
+    const r = svg.getBoundingClientRect();
+    const x = (clientX - r.left) * (svg.viewBox.baseVal.width / r.width);
+    let bi = 0, bd = Infinity;
+    xs.forEach((v,i)=>{ const d = Math.abs(v-x); if(d<bd){bd=d;bi=i;} });
+    const res = show(bi);
+    tip.innerHTML = res.html;
+    const px = xs[bi] * (r.width / svg.viewBox.baseVal.width);
+    const half = tip.offsetWidth/2;
+    tip.style.left = Math.max(half, Math.min(r.width-half, px)) + 'px';
+    tip.style.top = (res.y * (r.height / svg.viewBox.baseVal.height) - tip.offsetHeight - 10) + 'px';
+    tip.style.opacity = 1;
+    if(cross){ cross.setAttribute('x1', xs[bi]); cross.setAttribute('x2', xs[bi]); cross.style.opacity = 1; }
+    dots.forEach((d,i)=> d.setAttribute('r', i===bi ? 6 : d.dataset.r));
+  }
+  function hide(){ tip.style.opacity = 0; if(cross) cross.style.opacity = 0; dots.forEach(d=>d.setAttribute('r', d.dataset.r)); }
+  el.onpointermove = e => at(e.clientX);
+  el.onpointerdown = e => at(e.clientX);
+  el.onpointerleave = e => { if(e.pointerType === 'mouse') hide(); };
+}
+
+// Line / area chart. series: [{x:Date,y:number,label?:string}]
+function lineChart(el, opt){
+  const W = Math.max(280, el.clientWidth), H = opt.height || 190;
+  const P = {l:30, r:12, t:16, b:26};
+  const data = opt.data;
+  const yMin = opt.yMin, yMax = opt.yMax;
+  const iw = W-P.l-P.r, ih = H-P.t-P.b;
+  const xs = data.map((d,i)=> P.l + (data.length===1 ? iw/2 : i*iw/(data.length-1)));
+  const y = v => P.t + ih - (v - yMin)/(yMax - yMin)*ih;
+  const pts = data.map((d,i)=>[xs[i], y(d.y)]);
+  const id = 'g'+Math.random().toString(36).slice(2,8);
+  let grid = '';
+  for(const tk of opt.ticks){
+    grid += `<line x1="${P.l}" x2="${W-P.r}" y1="${y(tk)}" y2="${y(tk)}" stroke="var(--grid)" stroke-width="1"/>`;
+    grid += `<text x="${P.l-8}" y="${y(tk)+4}" text-anchor="end" font-size="10.5" fill="var(--muted)">${fmt(tk)}</text>`;
+  }
+  let band = '';
+  if(opt.band){
+    const y1 = y(Math.min(opt.band[1], yMax)), y2 = y(Math.max(opt.band[0], yMin));
+    if(y2 > y1) band = `<rect x="${P.l}" y="${y1}" width="${iw}" height="${y2-y1}" fill="${opt.bandColor||'#e8f7ee'}" rx="4"/>
+      <text x="${W-P.r-6}" y="${y2-6}" text-anchor="end" font-size="10" font-weight="700" fill="var(--good)">${esc(opt.bandLabel||'')}</text>`;
+  }
+  const step = data.length > 10 ? Math.ceil(data.length/6) : (data.length > 6 ? 2 : 1);
+  let xl = '';
+  data.forEach((d,i)=>{ if((data.length-1-i) % step === 0) xl += `<text x="${xs[i]}" y="${H-6}" text-anchor="middle" font-size="10.5" fill="var(--muted)">${md(d.x)}</text>`; });
+  const line = smoothPath(pts);
+  const area = (data.length > 1 && opt.area !== false) ? line + `L${pts[pts.length-1][0]},${P.t+ih}L${pts[0][0]},${P.t+ih}Z` : '';
+  const dots = pts.map((p,i)=>`<circle class="dot" data-r="${i===pts.length-1?5:3.5}" r="${i===pts.length-1?5:3.5}" cx="${p[0]}" cy="${p[1]}" fill="${i===pts.length-1?opt.color:'#fff'}" stroke="${opt.color}" stroke-width="2"/>`).join('');
+  el.innerHTML = `<div class="tip"></div>
+  <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${esc(opt.aria||'')}">
+    <defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${opt.color}" stop-opacity=".28"/><stop offset="1" stop-color="${opt.color}" stop-opacity="0"/></linearGradient></defs>
+    ${band}${grid}
+    <path d="${area}" fill="url(#${id})"/>
+    <path d="${line}" fill="none" stroke="${opt.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <line class="cross" y1="${P.t}" y2="${P.t+ih}" stroke="var(--muted)" stroke-dasharray="3 3" stroke-width="1" style="opacity:0"/>
+    ${dots}${xl}
+  </svg>`;
+  attachHover(el, el.querySelector('svg'), xs, i => ({ y: pts[i][1], html: opt.tip(data[i]) }));
+}
+
+// Grouped bars. data: [{x:Date, a:number|null, b:number|null}]
+function groupedBars(el, opt){
+  const W = Math.max(280, el.clientWidth), H = opt.height || 200;
+  const P = {l:30, r:8, t:16, b:26};
+  const data = opt.data, iw = W-P.l-P.r, ih = H-P.t-P.b;
+  const yMax = opt.yMax;
+  const y = v => P.t + ih - v/yMax*ih;
+  const slot = iw / data.length;
+  const bw = Math.min(16, (slot-10)/2);
+  let grid = '';
+  for(const tk of opt.ticks){
+    grid += `<line x1="${P.l}" x2="${W-P.r}" y1="${y(tk)}" y2="${y(tk)}" stroke="var(--grid)"/>`;
+    grid += `<text x="${P.l-8}" y="${y(tk)+4}" text-anchor="end" font-size="10.5" fill="var(--muted)">${fmt(tk)}</text>`;
+  }
+  const xs = [];
+  let bars = '';
+  data.forEach((d,i)=>{
+    const cx = P.l + slot*i + slot/2; xs.push(cx);
+    [['a',opt.colors[0],-1],['b',opt.colors[1],1]].forEach(([k,c,s])=>{
+      const v = d[k]; if(v===null) return;
+      const x = s<0 ? cx - bw - 1 : cx + 1;
+      const h = Math.max(2, (v/yMax)*ih), top = P.t+ih-h, r = Math.min(4, bw/2);
+      bars += `<path d="M${x},${P.t+ih}V${top+r}Q${x},${top} ${x+r},${top}H${x+bw-r}Q${x+bw},${top} ${x+bw},${top+r}V${P.t+ih}Z" fill="${c}"/>`;
+    });
+  });
+  const step = data.length > 6 ? 2 : 1;
+  let xl = '';
+  data.forEach((d,i)=>{ if((data.length-1-i)%step===0) xl += `<text x="${xs[i]}" y="${H-6}" text-anchor="middle" font-size="10.5" fill="var(--muted)">${md(d.x)}</text>`; });
+  el.innerHTML = `<div class="tip"></div>
+  <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${esc(opt.aria||'')}">
+    ${grid}<line class="cross" y1="${P.t}" y2="${P.t+ih}" stroke="var(--line)" stroke-width="${slot*0.8}" style="opacity:0"/>${bars}${xl}
+  </svg>`;
+  // keep highlight band behind bars
+  const svg = el.querySelector('svg'); const cross = svg.querySelector('.cross'); svg.insertBefore(cross, svg.firstChild);
+  attachHover(el, svg, xs, i => ({ y: y(Math.max(data[i].a||0, data[i].b||0)), html: opt.tip(data[i]) }));
+}
+
+function ring(value, max, size, stroke, color, track){
+  const r = (size-stroke)/2, c = 2*Math.PI*r, pct = value===null ? 0 : Math.max(0, Math.min(1, value/max));
+  const id = 'r'+Math.random().toString(36).slice(2,8);
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${color[0]}"/><stop offset="1" stop-color="${color[1]}"/></linearGradient></defs>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${track||'var(--grid)'}" stroke-width="${stroke}"/>
+    <circle class="ringfill" cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="url(#${id})" stroke-width="${stroke}" stroke-linecap="round"
+      stroke-dasharray="${c}" stroke-dashoffset="${c}" data-target="${c*(1-pct)}" transform="rotate(-90 ${size/2} ${size/2})" style="transition:stroke-dashoffset 1s cubic-bezier(.2,.8,.2,1)"/>
+  </svg>`;
+}
+function animateIn(root){
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    root.querySelectorAll('.ringfill').forEach(c=>c.setAttribute('stroke-dashoffset', c.dataset.target));
+    root.querySelectorAll('.bar > div').forEach(b=>b.style.width = b.dataset.w);
+  }));
+}
+
+// ===================== TARGETS / GAUGES =====================
+// General adult guidelines. Verify against the current sources before publishing.
+const SRC = {
+  activity:['U.S. Physical Activity Guidelines (HHS)','https://odphp.health.gov/our-work/nutrition-physical-activity/physical-activity-guidelines/current-guidelines'],
+  acs:['American Cancer Society Guideline for Diet and Physical Activity','https://www.cancer.org/cancer/risk-prevention/diet-physical-activity/acs-guidelines-nutrition-physical-activity-cancer-prevention/guidelines.html'],
+  sleep:['CDC: About Sleep','https://www.cdc.gov/sleep/about/index.html'],
+  dga:['Dietary Guidelines for Americans','https://www.dietaryguidelines.gov/'],
+  dri:['National Academies: Dietary Reference Intakes','https://nap.nationalacademies.org/catalog/10490'],
+  bmi:['CDC: Adult BMI Categories','https://www.cdc.gov/bmi/adult-calculator/bmi-categories.html'],
+  aha:['American Heart Association: Understanding Blood Pressure Readings','https://www.heart.org/en/health-topics/high-blood-pressure/understanding-blood-pressure-readings'],
+};
+let gaugeSeq = 0;
+// g: {emoji,title,value,unit,scale:[a,b],zone:[lo,hi],ok:bool,status,target,note,src:[keys],valueText?}
+function gauge(g){
+  const p = v => Math.max(0, Math.min(100, (v - g.scale[0]) / (g.scale[1] - g.scale[0]) * 100));
+  const id = 'gs' + (++gaugeSeq);
+  const hasVal = g.value !== null && g.value !== undefined;
+  return `<div class="tg">
+    <div class="tg-top"><span class="tg-name">${g.emoji} ${g.title}</span>
+      <span class="tg-val">${hasVal ? (g.valueText || fmt(g.value)) + ' <small>' + g.unit + '</small>' : '<small>no data yet</small>'}</span></div>
+    <div class="tg-bar"><div class="tg-zone" style="left:${p(g.zone[0])}%;width:${Math.max(2,p(g.zone[1])-p(g.zone[0]))}%"></div>
+      ${hasVal ? `<div class="tg-mark" style="left:${p(g.value)}%"></div>` : ''}</div>
+    <div class="tg-foot"><span class="tg-st ${hasVal ? (g.ok ? 'ok' : 'warn') : ''}">${hasVal ? (g.ok ? '✅ ' : '• ') + g.status : 'Log it to see where you stand'}</span>
+      <button class="tg-i" data-tg="${id}" aria-label="About this target">${esc(g.target)} ⓘ</button></div>
+    <div class="tg-src" id="${id}">${g.note}<br>${g.src.map(k=>`Source: <a href="${SRC[k][1]}" target="_blank" rel="noopener">${SRC[k][0]}</a>`).join('<br>')}</div>
+  </div>`;
+}
+function wireGauges(root){
+  root.querySelectorAll('.tg-i').forEach(b=>b.addEventListener('click',()=>document.getElementById(b.dataset.tg).classList.toggle('open')));
+}
+
+// ===================== STATE =====================
+const state = { view: queryParams.get('view') === 'weekly' ? 'weekly' : 'daily', range: 14, daily: null, weekly: null, dailyErr: null, weeklyErr: null };
+const app = document.getElementById('app');
+
+document.querySelectorAll('.seg button').forEach(b=>{
+  b.addEventListener('click', ()=>{ state.view = b.dataset.view; render(); window.scrollTo({top:0,behavior:'smooth'}); });
+});
+
+function stateCard(icon, title, body, action){
+  const btn = action ? `<button class="go" onclick="goToApp()">${action}</button>
+    <p class="hint" id="navHint">Tap the <b>←</b> back arrow at the top of the screen, then sign in.</p>` : '';
+  return `<div class="card state"><div class="big">${icon}</div><h2>${title}</h2><p>${body}</p>${btn}</div>`;
+}
+// Leave this page and return to the app's sign-in flow.
+// Web (page runs inside an iframe): send the whole browser tab to the app; it opens Sign In if signed out.
+// Native app (no iframe): a WebView can't steer the app, so show how to go back.
+// Set to the Eddie Prevention web app address once it is published (leave '' until then).
+const APP_URL = '';
+function goToApp(){
+  try{ if(APP_URL && window.top !== window.self){ window.top.location.href = APP_URL; return; } }catch(e){}
+  const h = document.getElementById('navHint'); if(h) h.style.display = 'block';
+}
+function errorCard(err, collection){
+  const c = err && err.code;
+  if(c === 'UNAUTHENTICATED') return stateCard('🔑','Please sign in again','Your sign-in expired for your security.','Go to Sign In');
+  if(c === 'FAILED_PRECONDITION') return stateCard('🛠️','Almost ready','Your data index is still being built. Please check back in a few minutes.');
+  if(c === 'PERMISSION_DENIED') return stateCard('🔐','Access blocked','Your account could not read its '+esc(collection)+'. Please sign out and back in.');
+  return stateCard('⚠️','Could not load your progress','Please check your connection and try again. ('+esc(c||'error')+')');
+}
+
+// ===================== DAILY VIEW =====================
+function renderDaily(){
+  if(state.dailyErr) return errorCard(state.dailyErr, 'daily check-ins');
+  const all = state.daily;
+  if(!all.length) return stateCard('🌱','Your progress garden is empty','Complete your first Daily Check-In and watch your wellness story grow here.');
+
+  const today = dayOnly(new Date());
+  const from = addDays(today, -(state.range-1));
+  const prevFrom = addDays(from, -state.range);
+  const inRange = all.filter(e => e.day >= from);
+  const prevRange = all.filter(e => e.day >= prevFrom && e.day < from);
+  const scored = all.filter(e => e.score !== null);
+  const latest = scored[scored.length-1] || null;
+  const prev = scored.length > 1 ? scored[scored.length-2] : null;
+  const st = streak(all);
+  const weekCount = all.filter(e => e.day >= addDays(today,-6)).length;
+
+  let chip = '';
+  if(latest && prev){
+    const d = latest.score - prev.score;
+    const when = (latest.day - prev.day) <= 86400000*1.05 ? 'from yesterday' : 'since last check-in';
+    chip = d > 0 ? `<span class="chip up">▲ ${d} ${when}</span>` : d < 0 ? `<span class="chip down">▼ ${-d} ${when}</span>` : `<span class="chip flat">— same as last check-in</span>`;
+  }
+  const lastLabel = latest ? (dayKey(latest.day) === dayKey(today) ? 'Today' : longDate(latest.day)) : '';
+
+  // Summary
+  let html = `<div class="card">
+    <div class="summary">
+      <div class="ring">${ring(latest?latest.score:null, 23, 118, 12, ['#1B9BD7','#0b4f8a'])}
+        <div class="val"><div class="num">${latest?latest.score:'—'}</div><div class="of">of 23</div></div></div>
+      <div class="stats">
+        <div class="stat"><div class="ico">🔥</div><div><b>${st} day${st===1?'':'s'}</b><span>check-in streak</span></div></div>
+        <div class="stat"><div class="ico">📅</div><div><b>${weekCount} of 7</b><span>days logged this week</span></div></div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+      ${chip || '<span></span>'}<span class="chip flat" style="margin-top:12px">Latest: ${esc(lastLabel)}</span>
+    </div>
+    <details class="explain"><summary>How is my score calculated?</summary>
+      <p>Your daily Wellness Score adds up to <b>23 points</b>: activity, nutrition and sleep (up to 5 each, 15 total), <b>+4</b> for a tobacco- and nicotine-free day, and <b>+4</b> for an alcohol-free day.</p>
+    </details>
+  </div>`;
+
+  // Streaks
+  const tS = habitStreak(all,'tobaccoFree'), aS = habitStreak(all,'alcoholFree');
+  const tB = bestStreak(all,'tobaccoFree'), aB = bestStreak(all,'alcoholFree');
+  const streakBox = (ico, n, label, best) => `<div class="choice"><div style="font-size:26px">${ico}</div>
+      <div style="font-size:30px;font-weight:800;color:var(--blue);line-height:1.1">${n}</div>
+      <span>${label}<br>${best>n?`best: ${best} days`:(n>0?'personal best!':'start today')}</span></div>`;
+  html += `<div class="card">
+    <div class="card-head"><div><h2>Your streaks</h2><div class="sub">Days in a row · logged check-ins</div></div></div>
+    <div class="choices">
+      ${streakBox('🚭', tS, `tobacco-free day${tS===1?'':'s'}`, tB)}
+      ${streakBox('🍷', aS, `alcohol-free day${aS===1?'':'s'}`, aB)}
+    </div>
+    ${(tS>=7||aS>=7)?'<div class="note" style="padding:12px 4px 0">🎉 A full week or more — your body is already thanking you.</div>':''}
+  </div>`;
+
+  // Your targets (last 7 days, real-unit check-ins only)
+  const wk = all.filter(e => e.day >= addDays(today,-6));
+  const v2 = wk.filter(e => e.minutes!==null || e.sleepHrs!==null || e.fruit!==null || e.veg!==null);
+  const sum = a => a.filter(v=>v!==null).reduce((s,v)=>s+v,0);
+  const has = k => v2.some(e=>e[k]!==null);
+  const mins = has('minutes') ? sum(v2.map(e=>e.minutes)) : null;
+  const slp = avg(v2.map(e=>e.sleepHrs));
+  const fru = avg(v2.map(e=>e.fruit));
+  const veg = avg(v2.map(e=>e.veg));
+  const drk = has('drinks') ? sum(v2.map(e=>e.drinks)) : null;
+  html += `<div class="card">
+    <div class="card-head"><div><h2>Your targets</h2><div class="sub">Last 7 days${v2.length?` · ${v2.length} check-in${v2.length===1?'':'s'}`:''} · compared with national guidelines</div></div></div>
+    <div class="tg-legend"><i></i> target range</div>
+    ${gauge({emoji:'🏃',title:'Activity this week',value:mins,unit:'min',scale:[0,360],zone:[150,300],ok:mins!==null&&mins>=150,
+      status:mins>=300?'Excellent: extra protection':mins>=150?'Goal met':`${150-(mins||0)} min to go`,
+      target:'150–300 min/week',note:'Adults should get 150–300 minutes of moderate activity, like brisk walking, each week. Going beyond 300 minutes adds even more protection.',src:['activity','acs']})}
+    ${gauge({emoji:'😴',title:'Average sleep',value:slp,unit:'hrs',scale:[4,11],zone:[7,9],ok:slp!==null&&slp>=7&&slp<=9,
+      status:slp>9?'More than recommended':slp>=7?'Goal met':'Below the goal',
+      target:'7–9 hrs/night',note:'Most adults need 7 or more hours of sleep each night.',src:['sleep']})}
+    ${gauge({emoji:'🍎',title:'Fruit, daily average',value:fru,unit:'cups',scale:[0,3],zone:[1.5,3],ok:fru!==null&&fru>=1.5,
+      status:fru>=1.5?'Goal met':'Getting there',
+      target:'1½–2 cups/day',note:'Adults need about 1½–2 cups of fruit a day. Whole fruit is better than juice.',src:['dga','acs']})}
+    ${gauge({emoji:'🥦',title:'Vegetables, daily average',value:veg,unit:'cups',scale:[0,4],zone:[2,4],ok:veg!==null&&veg>=2,
+      status:veg>=2?'Goal met':'Getting there',
+      target:'2–3 cups/day',note:'Adults need about 2–3 cups of vegetables a day, including a variety of colors.',src:['dga','acs']})}
+    ${gauge({emoji:'🍷',title:'Alcohol this week',value:drk,unit:drk===1?'drink':'drinks',scale:[0,14],zone:[0,0.3],ok:drk===0,
+      status:drk===0?'Goal met: alcohol-free':'Less is better',
+      target:'Best: none',note:'For cancer prevention, it is best not to drink alcohol. If you do, limit it to 1 drink a day for women or 2 for men.',src:['acs','dga']})}
+    ${v2.length ? '' : '<div class="note" style="padding:12px 4px 0">Your targets fill in as you log minutes, hours, and cups in the Daily Check-In.</div>'}
+  </div>`;
+
+  // Trend
+  const trendData = inRange.filter(e=>e.score!==null).map(e=>({x:e.day, y:e.score, e}));
+  html += `<div class="card">
+    <div class="card-head"><div><h2>Wellness Score</h2><div class="sub">Tap the chart to see each day</div></div>
+      <div class="pills" id="rangePills">${[7,14,30].map(r=>`<button data-r="${r}" aria-pressed="${state.range===r}">${r}d</button>`).join('')}</div></div>
+    ${trendData.length >= 2 ? '<div class="chart" id="trendChart"></div>' : `<div class="note">${trendData.length===1?'One more check-in in this period and your trend line appears.':'No check-ins in the last '+state.range+' days yet.'}</div>`}
+  </div>`;
+
+  // Calendar (last 4 weeks, aligned to weeks ending this Saturday)
+  const endSat = addDays(today, 6 - today.getDay());
+  const start = addDays(endSat, -27);
+  const map = new Map(all.map(e=>[dayKey(e.day), e]));
+  const shade = s => s===null ? '#93d1f0' : ['#cfeaf8','#93d1f0','#4fb3e3','#1B9BD7','#0b4f8a'][Math.min(4, Math.floor((s/23)*5))];
+  let cells = DOWS.map(d=>`<div class="dow">${d[0]}</div>`).join('');
+  for(let i=0;i<28;i++){
+    const d = addDays(start,i), e = map.get(dayKey(d));
+    const fut = d > today, isToday = dayKey(d) === dayKey(today);
+    cells += `<div class="d${e?' has':''}${fut?' future':''}${isToday?' today':''}" data-k="${dayKey(d)}" ${e?`style="background:${shade(e.score)}"`:''}>${fut?'':d.getDate()}</div>`;
+  }
+  html += `<div class="card">
+    <div class="card-head"><div><h2>Consistency</h2><div class="sub">Last 4 weeks · darker = higher score</div></div></div>
+    <div class="cal" id="cal">${cells}</div>
+    <div class="cal-foot"><span id="calInfo">Tap a day for details</span>
+      <span class="scale">Low ${['#cfeaf8','#93d1f0','#4fb3e3','#1B9BD7','#0b4f8a'].map(c=>`<i style="background:${c}"></i>`).join('')} High</span></div>
+  </div>`;
+
+  // Habits
+  const habits = [
+    {k:'activity', name:'🏃 Physical activity'},
+    {k:'nutrition', name:'🥗 Nutrition'},
+    {k:'sleep', name:'😴 Sleep'},
+  ].map(h=>({...h, cur: avg(inRange.map(e=>e[h.k])), prev: avg(prevRange.map(e=>e[h.k]))}));
+  html += `<div class="card">
+    <div class="card-head"><div><h2>Habit averages</h2><div class="sub">Last ${state.range} days · out of 5 · vs. the ${state.range} days before</div></div></div>
+    ${habits.map(h=>{
+      let tr = '';
+      if(h.cur!==null && h.prev!==null){ const d = h.cur-h.prev; if(Math.abs(d)>=0.1) tr = `<span class="trend ${d>0?'up':'down'}">${d>0?'▲':'▼'} ${Math.abs(d).toFixed(1)}</span>`; }
+      return `<div class="habit"><div class="habit-top"><span class="habit-name">${h.name}</span><span class="habit-val">${h.cur===null?'—':h.cur.toFixed(1)+' / 5'}${tr}</span></div>
+        <div class="bar"><div data-w="${h.cur===null?0:Math.min(100,h.cur/5*100)}%"></div></div></div>`;
+    }).join('')}
+  </div>`;
+
+  // Healthy choices
+  const tKnown = inRange.filter(e=>e.tobaccoFree!==null), aKnown = inRange.filter(e=>e.alcoholFree!==null);
+  const tFree = tKnown.filter(e=>e.tobaccoFree).length, aFree = aKnown.filter(e=>e.alcoholFree).length;
+  html += `<div class="card">
+    <div class="card-head"><div><h2>Healthy choices</h2><div class="sub">Share of logged days · last ${state.range} days</div></div></div>
+    <div class="choices">
+      <div class="choice"><div class="mini">${ring(tKnown.length?tFree:null, tKnown.length||1, 64, 7, ['#34d399','#16a34a'])}<b>${tKnown.length?tFree:'—'}</b></div>
+        <span>🚭 tobacco-free${tKnown.length?` of ${tKnown.length}`:''}</span></div>
+      <div class="choice"><div class="mini">${ring(aKnown.length?aFree:null, aKnown.length||1, 64, 7, ['#1B9BD7','#0b4f8a'])}<b>${aKnown.length?aFree:'—'}</b></div>
+        <span>🍷 alcohol-free${aKnown.length?` of ${aKnown.length}`:''}</span></div>
+    </div>
+  </div>`;
+
+  // Cravings
+  const cr = inRange.filter(e=>e.cravings);
+  if(cr.length){
+    const strong = cr.filter(e=>e.cravings==='strong').length, mild = cr.filter(e=>e.cravings==='mild').length, none = cr.length-strong-mild;
+    const half = Math.floor(cr.length/2);
+    const sc = a => a.reduce((t,e)=>t+(e.cravings==='strong'?2:e.cravings==='mild'?1:0),0)/Math.max(1,a.length);
+    const trendTxt = cr.length >= 4 ? (sc(cr.slice(half)) < sc(cr.slice(0,half)) ? 'Your cravings are easing. Keep going!' : sc(cr.slice(half)) > sc(cr.slice(0,half)) ? 'Cravings picked up lately. Notice what triggers them — stress, people, places, or times of day.' : 'Cravings are holding steady.') : 'Log a few more days to see your cravings trend.';
+    html += `<div class="card"><div class="status"><div class="badge" style="background:var(--bg)">🌊</div><div><h3>Cravings · last ${state.range} days</h3>
+      <p>${none} none · ${mild} mild · ${strong} strong. ${esc(trendTxt)}</p></div></div></div>`;
+  }
+
+  // Insight
+  const ranked = habits.filter(h=>h.cur!==null).sort((a,b)=>b.cur-a.cur);
+  if(ranked.length){
+    const TIPS = {
+      activity:'Aim for at least 150 minutes of moderate activity each week. A brisk 20-minute walk a day gets you there.',
+      nutrition:'Try filling half your plate with vegetables and fruit, and choose whole grains over refined ones.',
+      sleep:'Most adults do best with 7 or more hours. A consistent bedtime helps more than anything else.'
+    };
+    const best = ranked[0], low = ranked[ranked.length-1];
+    const msg = ranked.length > 1 && best.cur - low.cur >= 0.5
+      ? `${best.name.slice(2).trim()} is your strongest habit right now. Nice work! A small focus area: ${low.name.slice(2).trim().toLowerCase()}. ${TIPS[low.k]}`
+      : `Your habits are well balanced. Keep checking in daily. Consistency is what turns healthy choices into lower risk of cancer, heart disease, and diabetes.`;
+    html += `<div class="card insight"><div class="status"><div class="badge" style="background:#fff">💡</div><div><h3>Your insight</h3><p>${esc(msg)}</p></div></div></div>`;
+  }
+
+  app.innerHTML = html;
+  wireGauges(app);
+
+  // wire interactivity
+  app.querySelectorAll('#rangePills button').forEach(b=>b.addEventListener('click',()=>{ state.range = +b.dataset.r; render(); }));
+  const tc = document.getElementById('trendChart');
+  if(tc) registerChart(tc, el => lineChart(el, {
+    data: trendData, yMin:0, yMax:23, ticks:[0,6,12,18,23], color:'#0b5cad', aria:'Wellness score trend',
+    tip: d => `<span class="dim">${longDate(d.x)}</span><br><b>${d.y}</b> / 23${d.e.tobaccoFree===false?' · tobacco':''}`
+  }));
+  const info = document.getElementById('calInfo');
+  app.querySelectorAll('#cal .d:not(.future)').forEach(c=>c.addEventListener('click',()=>{
+    const e = map.get(c.dataset.k);
+    const [yy,mm,dd] = c.dataset.k.split('-').map(Number);
+    const d = new Date(yy,mm-1,dd);
+    info.innerHTML = e ? `<b>${longDate(d)}</b> · score ${e.score ?? '—'} / 23` : `${longDate(d)} · no check-in`;
+  }));
+  animateIn(app);
+}
+
+// ===================== WEEKLY VIEW =====================
+function renderWeekly(){
+  if(state.weeklyErr) return errorCard(state.weeklyErr, 'weekly check-ins');
+  const all = state.weekly;
+  if(!all.length) return stateCard('📈','No weekly trends yet','Complete your first Weekly Check-In and your long-term trends will grow here.');
+
+  const recent = all.slice(-8);
+  const latest = all[all.length-1];
+  const today = dayOnly(new Date());
+  const last7 = (state.daily||[]).filter(e=>e.day >= addDays(today,-6));
+  const wAvg = avg(last7.map(e=>e.score));
+
+  let html = `<div class="card">
+    <div class="card-head"><div><h2>This week</h2><div class="sub">Last weekly check-in: ${longDate(latest.t)}</div></div></div>
+    <div class="choices" style="grid-template-columns:repeat(3,1fr)">
+      <div class="choice"><div class="mini">${ring(wAvg, 23, 64, 7, ['#1B9BD7','#0b4f8a'])}<b>${wAvg===null?'—':wAvg.toFixed(0)}</b></div><span>avg wellness<br>(7 days)</span></div>
+      <div class="choice"><div class="mini">${ring(latest.stress===null?null:10-latest.stress, 10, 64, 7, ['#fbbf24','#d97706'])}<b>${fmt(latest.stress)}</b></div><span>stress<br>(0–10)</span></div>
+      <div class="choice"><div class="mini">${ring(Math.min(all.length,12), 12, 64, 7, ['#34d399','#16a34a'])}<b>${all.length}</b></div><span>week${all.length===1?'':'s'}<br>logged</span></div>
+    </div>
+  </div>`;
+
+  // Weekly targets
+  const lastFiber = [...all].reverse().find(e=>e.fiberGrams!==null);
+  const lastBmi = [...all].reverse().find(e=>e.bmi!==null);
+  const fg = lastFiber ? lastFiber.fiberGrams : null, bv = lastBmi ? lastBmi.bmi : null;
+  const lastBp = [...all].reverse().find(e=>e.sys!==null && e.dia!==null);
+  const sv = lastBp ? lastBp.sys : null, dv = lastBp ? lastBp.dia : null;
+  const bpSt = sv===null ? '' : (sv>180||dv>120) ? 'Very high: recheck, call 911 if symptoms' : (sv>=140||dv>=90) ? 'High (stage 2)' : (sv>=130||dv>=80) ? 'High (stage 1)' : sv>=120 ? 'Elevated' : 'Healthy';
+  html += `<div class="card">
+    <div class="card-head"><div><h2>Your targets</h2><div class="sub">Latest weekly check-in · compared with national guidelines</div></div></div>
+    <div class="tg-legend"><i></i> target range</div>
+    ${gauge({emoji:'🌾',title:'Fiber, typical day',value:fg,unit:'g/day',scale:[0,45],zone:[25,38],ok:fg!==null&&fg>=25,
+      status:fg>=25?'Goal met':`${25-(fg||0)} g to go`,
+      target:'25–38 g/day',note:'Adults need about 25 g (women) to 38 g (men) of fiber a day. Beans, lentils, whole grains, fruits, and vegetables are great sources.',src:['dga','dri']})}
+    ${gauge({emoji:'⚖️',title:'BMI',value:bv,unit:'',valueText:bv!==null?bv.toFixed(1):'',scale:[15,40],zone:[18.5,24.9],ok:bv!==null&&bv>=18.5&&bv<25,
+      status:bv<18.5?'Below the healthy range':bv<25?'Healthy range':bv<30?'Above the healthy range':'Well above the healthy range',
+      target:'18.5–24.9',note:'A healthy BMI for adults is 18.5–24.9. Keeping a healthy weight lowers the risk of many cancers. BMI is a screening tool, not a diagnosis.',src:['bmi','acs']})}
+    ${gauge({emoji:'❤️',title:'Blood pressure (top number)',value:sv,unit:'mmHg',valueText:sv!==null?`${sv}/${dv}`:'',scale:[90,180],zone:[90,119],ok:sv!==null&&sv<120&&dv<80,
+      status:bpSt,target:'Below 120/80',note:'Healthy blood pressure is below 120/80. Less salt, more activity, less alcohol, and not smoking all help lower it. Share high readings with your doctor.',src:['aha']})}
+  </div>`;
+
+  // Fiber line (grams/day)
+  const fib = recent.filter(e=>e.fiberGrams!==null).map(e=>({x:e.t, y:e.fiberGrams}));
+  html += `<div class="card">
+    <div class="card-head"><div><h2>Fiber</h2><div class="sub">Grams per day · shaded band is the 25–38 g target</div></div></div>
+    ${fib.length >= 2 ? '<div class="chart" id="fiberChart"></div>' : '<div class="note">Log two weekly check-ins and your fiber trend appears here.</div>'}
+  </div>`;
+
+  // Stress line
+  const str = recent.filter(e=>e.stress!==null).map(e=>({x:e.t, y:e.stress}));
+  html += `<div class="card">
+    <div class="card-head"><div><h2>Stress</h2><div class="sub">0 (low) to 10 (high) · lower is better</div></div></div>
+    ${str.length >= 2 ? '<div class="chart" id="stressChart"></div>' : '<div class="note">Log two weekly check-ins and your stress trend appears here.</div>'}
+  </div>`;
+
+  // BMI
+  const bmiPts = all.filter(e=>e.bmi!==null).slice(-12).map(e=>({x:e.t, y:e.bmi}));
+  let bmiBadge = '';
+  if(bmiPts.length){
+    const b = bmiPts[bmiPts.length-1].y;
+    const [lab,col,bg] = b < 18.5 ? ['Below healthy range','var(--warn)','var(--warn-soft)'] : b < 25 ? ['Healthy range','var(--good)','var(--good-soft)'] : b < 30 ? ['Above healthy range','var(--warn)','var(--warn-soft)'] : ['Well above healthy range','var(--warn)','var(--warn-soft)'];
+    bmiBadge = `<span class="chip" style="margin-top:0;background:${bg};color:${col}">${b.toFixed(1)} · ${lab}</span>`;
+  }
+  html += `<div class="card">
+    <div class="card-head"><div><h2>BMI journey</h2><div class="sub">Optional · shaded band is the healthy range</div></div>${bmiBadge}</div>
+    ${bmiPts.length >= 2 ? '<div class="chart" id="bmiChart"></div>' : '<div class="note">Add your BMI to two weekly check-ins and your journey will chart here.</div>'}
+  </div>`;
+
+  // Blood pressure
+  const bpPts = all.filter(e=>e.sys!==null && e.dia!==null).slice(-12).map(e=>({x:e.t, y:e.sys, d:e.dia}));
+  if(bpPts.length){
+    html += `<div class="card">
+      <div class="card-head"><div><h2>Blood pressure</h2><div class="sub">Optional · top number shown · shaded band is healthy (below 120)</div></div></div>
+      ${bpPts.length >= 2 ? '<div class="chart" id="bpChart"></div>' : '<div class="note">Add blood pressure to two weekly check-ins and your trend appears here.</div>'}
+    </div>`;
+  }
+
+  // Insight
+  let msg = 'Keep logging each week. Long-term trends are where real health progress shows up.';
+  if(str.length >= 2){
+    const d = str[str.length-1].y - str[str.length-2].y;
+    if(d <= -1) msg = 'Your stress came down since last week. Whatever you are doing is working. Keep it up!';
+    else if(d >= 2) msg = 'Your stress rose this week. Short walks, a few slow deep breaths, or time with people you trust can help.';
+  }
+  html += `<div class="card insight"><div class="status"><div class="badge" style="background:#fff">💡</div><div><h3>Your insight</h3><p>${esc(msg)}</p></div></div></div>`;
+
+  app.innerHTML = html;
+
+  wireGauges(app);
+  const fc = document.getElementById('fiberChart');
+  if(fc){
+    const fTop = Math.max(45, Math.ceil(Math.max(...fib.map(p=>p.y))/5)*5+5);
+    registerChart(fc, el => lineChart(el, {
+      data: fib, yMin:0, yMax:fTop, ticks:[0,10,20,30,40].filter(t=>t<=fTop), color:'#1B9BD7', band:[25,38], bandLabel:'Target 25–38 g', area:false, aria:'Fiber trend',
+      tip: d => `<span class="dim">Week of ${md(d.x)}</span><br>Fiber <b>${fmt(d.y)}</b> g/day`
+    }));
+  }
+  const sc = document.getElementById('stressChart');
+  if(sc) registerChart(sc, el => lineChart(el, {
+    data: str, yMin:0, yMax:10, ticks:[0,2,4,6,8,10], color:'#d97706', aria:'Stress trend',
+    tip: d => `<span class="dim">Week of ${md(d.x)}</span><br>Stress <b>${fmt(d.y)}</b> / 10`
+  }));
+  const bc = document.getElementById('bmiChart');
+  if(bc){
+    const lo = Math.min(18, ...bmiPts.map(p=>p.y)), hi = Math.max(26, ...bmiPts.map(p=>p.y));
+    const yMin = Math.floor(lo-1), yMax = Math.ceil(hi+1);
+    const stepB = (yMax-yMin) > 12 ? 4 : 2;
+    const ticks = []; for(let v=Math.ceil(yMin/stepB)*stepB; v<=yMax; v+=stepB) ticks.push(v);
+    registerChart(bc, el => lineChart(el, {
+      data: bmiPts, yMin, yMax, ticks, color:'#16a34a', band:[18.5,24.9], bandLabel:'Healthy range 18.5–24.9', area:false, aria:'BMI trend',
+      tip: d => `<span class="dim">Week of ${md(d.x)}</span><br>BMI <b>${d.y.toFixed(1)}</b>`
+    }));
+  }
+  const bpc = document.getElementById('bpChart');
+  if(bpc){
+    const yMax = Math.max(160, Math.ceil(Math.max(...bpPts.map(p=>p.y))/10)*10+10);
+    registerChart(bpc, el => lineChart(el, {
+      data: bpPts, yMin:90, yMax, ticks:[90,110,130,150,170,190].filter(t=>t<=yMax), color:'#dc2626', band:[90,119], bandLabel:'Healthy', area:false, aria:'Blood pressure trend',
+      tip: d => `<span class="dim">Week of ${md(d.x)}</span><br>BP <b>${d.y}/${d.d}</b>`
+    }));
+  }
+  animateIn(app);
+}
+
+// ===================== RENDER / LOAD =====================
+function render(){
+  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.view===state.view)));
+  charts.length = 0;
+  if(!uid){
+    app.innerHTML = stateCard('🔒','Sign in to see your progress','Your check-ins sync to your account. Sign in and your charts appear here.','Go to Sign In');
+    return;
+  }
+  if(state.daily === null && !state.dailyErr){ return; }
+  const out = state.view === 'daily' ? renderDaily() : renderWeekly();
+  if(typeof out === 'string') app.innerHTML = out;
+}
+
+async function load(){
+  render();
+  if(!uid) return;
+  const [d, w] = await Promise.allSettled([queryLogs('daily_logs', 90), queryLogs('weekly_logs', 52)]);
+  if(d.status === 'fulfilled') state.daily = byDay(d.value.map(normDaily).filter(Boolean));
+  else { state.dailyErr = d.reason; state.daily = []; }
+  if(w.status === 'fulfilled') state.weekly = w.value.map(normWeekly).filter(Boolean).sort((a,b)=>a.t-b.t);
+  else { state.weeklyErr = w.reason; state.weekly = []; }
+  render();
+}
+load();
+</script>
+</body>
+</html>
