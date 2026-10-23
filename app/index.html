@@ -7,16 +7,21 @@
   <meta name="theme-color" content="#1B9BD7">
   <style>
     html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#fff; }
-    iframe {
-      position:fixed; top:0; left:0; right:0; bottom:0;
-      width:100%; height:100%;
-      height:100dvh;               /* fits above iPhone Safari toolbar */
-      border:0; display:block;
-    }
+    #wrap { position:fixed; top:0; left:0; right:0; height:100vh; height:100dvh; overflow:hidden; }
+    #wrap iframe { border:0; display:block; width:1px; min-width:100%; height:100%; }
   </style>
 </head>
 <body>
-  <iframe src="https://eddie-p-r-e-v-e-n-t-i-o-n-ix20v4.flutterflow.app"
-          allow="clipboard-write; fullscreen" title="Eddie Prevention"></iframe>
+  <div id="wrap">
+    <iframe src="https://eddie-p-r-e-v-e-n-t-i-o-n-ix20v4.flutterflow.app"
+            scrolling="no" allow="clipboard-write; fullscreen" title="Eddie Prevention"></iframe>
+  </div>
+  <script>
+    // Lock the frame to the exact visible screen height (iPhone Safari fix)
+    function fit(){ document.getElementById('wrap').style.height = window.innerHeight + 'px'; }
+    window.addEventListener('resize', fit);
+    window.addEventListener('orientationchange', function(){ setTimeout(fit, 300); });
+    fit();
+  </script>
 </body>
 </html>
